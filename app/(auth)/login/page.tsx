@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { LoginForm } from "./login-form";
 import { publicEnv } from "@/lib/env";
 
@@ -12,9 +13,11 @@ export default function LoginPage() {
           Welcome back to {publicEnv.appName}. Enter your credentials to continue.
         </p>
       </div>
-      <LoginForm
-        recaptchaSiteKey={publicEnv.recaptchaEnabled ? publicEnv.recaptchaSiteKey : ""}
-      />
+      <Suspense fallback={null}>
+        <LoginForm
+          recaptchaSiteKey={publicEnv.recaptchaEnabled ? publicEnv.recaptchaSiteKey : ""}
+        />
+      </Suspense>
       <p className="mt-8 text-center text-xs text-muted-foreground">
         Need help signing in? Contact your administrator.
       </p>

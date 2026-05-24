@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { MfaForm } from "./mfa-form";
 
 export const metadata = { title: "Two-Factor Authentication" };
@@ -11,7 +12,9 @@ export default function MfaPage() {
           Enter the 6-digit code from your authenticator app, or use a recovery code.
         </p>
       </div>
-      <MfaForm />
+      <Suspense fallback={null}>
+        <MfaForm />
+      </Suspense>
     </div>
   );
 }
