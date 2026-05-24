@@ -9,6 +9,9 @@ interface ContentRefs {
 }
 
 export function canEditContent(role: UserRole, userId: string, c: ContentRefs): boolean {
+  // super_admin is unrestricted and can edit any content in any state,
+  // including soft-deleted records (needed to fix mistakes / restore).
+  if (role === "super_admin") return true;
   if (c.isDeleted) return false;
   // Approved/scheduled/published/archived/failed are non-editable for normal users.
   const isEditableStatus = EDITABLE_STATUSES.includes(c.status);
@@ -41,8 +44,11 @@ const ALLOWED_TRANSITIONS: Record<ContentStatus, ContentStatus[]> = {
   deleted: ["draft"], // restore
 };
 
-export function canTransition(from: ContentStatus, to: ContentStatus): boolean {
+export function canTransition(from: ContentStatus, to: ContentStatus, role?: UserRole): boolean {
   if (from === to) return true;
+  // super_admin bypasses the workflow graph entirely and may move content
+  // between any two states.
+  if (role === "super_admin") return true;
   return ALLOWED_TRANSITIONS[from]?.includes(to) ?? false;
 }
 

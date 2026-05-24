@@ -60,8 +60,11 @@ const ALLOWED_BRIEF_TRANSITIONS: Record<BriefStatus, BriefStatus[]> = {
   template: ["archived"],
 };
 
-export function canTransitionBrief(from: BriefStatus, to: BriefStatus): boolean {
+export function canTransitionBrief(from: BriefStatus, to: BriefStatus, role?: UserRole): boolean {
   if (from === to) return true;
+  // super_admin can move briefs between any two states, including reviving
+  // archived templates or jumping the workflow during cleanup.
+  if (role === "super_admin") return true;
   return ALLOWED_BRIEF_TRANSITIONS[from]?.includes(to) ?? false;
 }
 

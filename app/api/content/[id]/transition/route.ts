@@ -70,7 +70,7 @@ export async function POST(req: NextRequest, ctx: RouteContext<"/api/content/[id
     const guard = guards[toStatus];
     if (guard && !guard()) return forbidden("You cannot perform this transition");
 
-    if (!canTransition(c.status, toStatus)) {
+    if (!canTransition(c.status, toStatus, role)) {
       return badRequest(`Invalid transition from "${c.status}" to "${toStatus}"`);
     }
     if (requiresReason(toStatus) && !reason?.trim()) {

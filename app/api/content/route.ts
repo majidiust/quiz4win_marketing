@@ -44,10 +44,15 @@ export async function GET(req: NextRequest) {
     const dateTo = sp.get("dateTo");
     const isGeneral = sp.get("general");
     const includeDeleted = sp.get("includeDeleted") === "true";
-    // scope=mine (default) restricts to content created by or assigned to the
-    // requester regardless of role. scope=all opens the view subject to
-    // permissions (see below).
-    const scope = sp.get("scope") === "all" ? "all" : "mine";
+    // scope=mine restricts to content created by or assigned to the
+    // requester. scope=all opens the view subject to permissions (see below).
+    // Default is "mine" for everyone except super_admin, whose default is
+    // "all" so they see the full library without flipping a toggle.
+    const scopeParam = sp.get("scope");
+    const scope =
+      scopeParam === "all" ? "all"
+      : scopeParam === "mine" ? "mine"
+      : auth.ctx.role === "super_admin" ? "all" : "mine";
 
     await connectDB();
 

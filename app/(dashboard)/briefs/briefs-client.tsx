@@ -46,11 +46,17 @@ export function BriefsClient() {
   const [status, setStatus] = React.useState(sp.get("status") || ANY);
   const [platform, setPlatform] = React.useState(sp.get("platform") || ANY);
   const [project, setProject] = React.useState(sp.get("project") || ANY);
-  // Scope toggle: "mine" (default) = created by me OR assigned to me.
-  // "all" = everything I'm allowed to see (gated by briefs.read.any on the API).
+  // Scope toggle: "mine" = created by me OR assigned to me. "all" =
+  // everything I'm allowed to see (gated by briefs.read.any on the API).
+  // Default is "mine" for everyone except super_admin, who defaults to "all".
   const canSeeAll = hasPermission("briefs.read.any");
+  const defaultScope: "mine" | "all" = user?.role === "super_admin" ? "all" : "mine";
   const [scope, setScope] = React.useState<"mine" | "all">(
-    sp.get("scope") === "all" && canSeeAll ? "all" : "mine"
+    sp.get("scope") === "all" && canSeeAll
+      ? "all"
+      : sp.get("scope") === "mine"
+      ? "mine"
+      : defaultScope
   );
   // "active" (default) = active only (templates excluded), "only" = templates,
   // "all" = both. Active-only matches the legacy view.
@@ -98,10 +104,10 @@ export function BriefsClient() {
   }, [fetchList]);
 
   function resetFilters() {
-    setQ(""); setStatus(ANY); setPlatform(ANY); setProject(ANY); setScope("mine"); setTemplates("active"); setPage(1);
+    setQ(""); setStatus(ANY); setPlatform(ANY); setProject(ANY); setScope(defaultScope); setTemplates("active"); setPage(1);
   }
 
-  const hasActiveFilters = q || status !== ANY || platform !== ANY || project !== ANY || scope !== "mine" || templates !== "active";
+  const hasActiveFilters = q || status !== ANY || platform !== ANY || project !== ANY || scope !== defaultScope || templates !== "active";
   const canCreate = hasPermission("briefs.create");
 
   return (

@@ -48,7 +48,7 @@ export async function POST(req: NextRequest, ctx: RouteContext<"/api/briefs/[id]
     if (!canPerformBriefTransition(auth.ctx.role, toStatus)) {
       return forbidden("You cannot perform this transition");
     }
-    if (!canTransitionBrief(b.status, toStatus)) {
+    if (!canTransitionBrief(b.status, toStatus, auth.ctx.role)) {
       return badRequest(`Invalid transition from "${b.status}" to "${toStatus}"`);
     }
 

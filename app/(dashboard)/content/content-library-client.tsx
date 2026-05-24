@@ -46,18 +46,24 @@ const ANY = "__any__";
 export function ContentLibraryClient() {
   const router = useRouter();
   const sp = useSearchParams();
-  const { hasPermission } = useUser();
+  const { hasPermission, user } = useUser();
 
   const [q, setQ] = React.useState(sp.get("q") || "");
   const [status, setStatus] = React.useState(sp.get("status") || ANY);
   const [platform, setPlatform] = React.useState(sp.get("platform") || ANY);
   const [contentType, setContentType] = React.useState(sp.get("contentType") || ANY);
   const [project, setProject] = React.useState(sp.get("project") || ANY);
-  // Scope: "mine" (default) = created by or assigned to the user.
-  // "all" = everything the user is allowed to see (gated by content.read.any).
+  // Scope: "mine" = created by or assigned to the user. "all" = everything
+  // the user is allowed to see (gated by content.read.any). Default is
+  // "mine" for everyone except super_admin, who defaults to "all".
   const canSeeAll = hasPermission("content.read.any");
+  const defaultScope: "mine" | "all" = user?.role === "super_admin" ? "all" : "mine";
   const [scope, setScope] = React.useState<"mine" | "all">(
-    sp.get("scope") === "all" && canSeeAll ? "all" : "mine"
+    sp.get("scope") === "all" && canSeeAll
+      ? "all"
+      : sp.get("scope") === "mine"
+      ? "mine"
+      : defaultScope
   );
   const [page, setPage] = React.useState(parseInt(sp.get("page") || "1", 10));
 
@@ -107,11 +113,11 @@ export function ContentLibraryClient() {
     setPlatform(ANY);
     setContentType(ANY);
     setProject(ANY);
-    setScope("mine");
+    setScope(defaultScope);
     setPage(1);
   }
 
-  const hasActiveFilters = q || status !== ANY || platform !== ANY || contentType !== ANY || project !== ANY || scope !== "mine";
+  const hasActiveFilters = q || status !== ANY || platform !== ANY || contentType !== ANY || project !== ANY || scope !== defaultScope;
 
   return (
     <div className="space-y-5">

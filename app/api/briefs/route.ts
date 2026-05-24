@@ -45,10 +45,16 @@ export async function GET(req: NextRequest) {
     const includeDeleted = sp.get("includeDeleted") === "true";
     // Templates filter: "only" / "exclude" / null (include both).
     const templates = sp.get("templates");
-    // scope=mine (default) restricts to briefs created by or assigned to the
-    // requester regardless of role. scope=all opens the view subject to
-    // permissions. The legacy `mine=true` query is treated as scope=mine.
-    const scope = sp.get("scope") === "all" && !mineLegacy ? "all" : "mine";
+    // scope=mine restricts to briefs created by or assigned to the requester.
+    // scope=all opens the view subject to permissions. The legacy
+    // `mine=true` query is still treated as scope=mine. Default is "mine"
+    // for everyone except super_admin, whose default is "all".
+    const scopeParam = sp.get("scope");
+    const scope = mineLegacy
+      ? "mine"
+      : scopeParam === "all" ? "all"
+      : scopeParam === "mine" ? "mine"
+      : auth.ctx.role === "super_admin" ? "all" : "mine";
 
     await connectDB();
 
