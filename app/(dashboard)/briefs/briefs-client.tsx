@@ -47,10 +47,10 @@ export function BriefsClient() {
   const [platform, setPlatform] = React.useState(sp.get("platform") || ANY);
   const [project, setProject] = React.useState(sp.get("project") || ANY);
   const [mine, setMine] = React.useState(sp.get("mine") === "true");
-  // "" (default) = active only (templates excluded), "only" = templates,
+  // "active" (default) = active only (templates excluded), "only" = templates,
   // "all" = both. Active-only matches the legacy view.
-  const [templates, setTemplates] = React.useState<"" | "only" | "all">(
-    (sp.get("templates") as "only" | "all" | null) || ""
+  const [templates, setTemplates] = React.useState<"active" | "only" | "all">(
+    (sp.get("templates") as "only" | "all" | null) || "active"
   );
   const [page, setPage] = React.useState(parseInt(sp.get("page") || "1", 10));
 
@@ -74,7 +74,7 @@ export function BriefsClient() {
     if (project !== ANY) params.set("project", project);
     if (mine) params.set("mine", "true");
     if (templates === "only") params.set("templates", "only");
-    else if (templates === "") params.set("templates", "exclude");
+    else if (templates === "active") params.set("templates", "exclude");
     params.set("page", String(page));
     params.set("limit", "20");
     try {
@@ -93,10 +93,10 @@ export function BriefsClient() {
   }, [fetchList]);
 
   function resetFilters() {
-    setQ(""); setStatus(ANY); setPlatform(ANY); setProject(ANY); setMine(false); setTemplates(""); setPage(1);
+    setQ(""); setStatus(ANY); setPlatform(ANY); setProject(ANY); setMine(false); setTemplates("active"); setPage(1);
   }
 
-  const hasActiveFilters = q || status !== ANY || platform !== ANY || project !== ANY || mine || templates !== "";
+  const hasActiveFilters = q || status !== ANY || platform !== ANY || project !== ANY || mine || templates !== "active";
   const canCreate = hasPermission("briefs.create");
 
   return (
@@ -151,10 +151,10 @@ export function BriefsClient() {
               >
                 Assigned to me
               </Button>
-              <Select value={templates} onValueChange={(v) => { setTemplates(v as "" | "only" | "all"); setPage(1); }}>
+              <Select value={templates} onValueChange={(v) => { setTemplates(v as "active" | "only" | "all"); setPage(1); }}>
                 <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Active only</SelectItem>
+                  <SelectItem value="active">Active only</SelectItem>
                   <SelectItem value="only">Templates</SelectItem>
                   <SelectItem value="all">All</SelectItem>
                 </SelectContent>
