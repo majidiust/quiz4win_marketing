@@ -25,6 +25,8 @@ export interface MediaRef {
   mimeType?: string;
   altText?: string;
   order?: number;
+  // Server-injected, short-lived signed GET URL for displaying private objects.
+  displayUrl?: string;
 }
 
 export interface EditableContent {
@@ -331,10 +333,10 @@ function MediaManager({ media, setMedia, disabled, contentId }: { media: MediaRe
         });
         const put = await fetch(presign.uploadUrl, { method: "PUT", body: file, headers: { "Content-Type": file.type || "application/octet-stream" } });
         if (!put.ok) throw new Error(`Upload failed for ${file.name}`);
-        const reg = await api<{ media: { _id: string; url: string; mimeType: string; thumbnailUrl?: string } }>("/api/media", {
+        const reg = await api<{ media: { _id: string; url: string; mimeType: string; thumbnailUrl?: string; displayUrl?: string } }>("/api/media", {
           json: { storageKey: presign.key, url: presign.publicUrl, originalFilename: file.name, mimeType: file.type || "application/octet-stream", size: file.size },
         });
-        setMedia((m) => [...m, { mediaFile: reg.media._id, url: reg.media.url, mimeType: reg.media.mimeType, thumbnailUrl: reg.media.thumbnailUrl || "", altText: "", order: m.length }]);
+        setMedia((m) => [...m, { mediaFile: reg.media._id, url: reg.media.url, mimeType: reg.media.mimeType, thumbnailUrl: reg.media.thumbnailUrl || "", altText: "", order: m.length, displayUrl: reg.media.displayUrl || reg.media.url }]);
       }
       toast.success("Uploaded");
     } catch (e) {
@@ -351,9 +353,9 @@ function MediaManager({ media, setMedia, disabled, contentId }: { media: MediaRe
         {media.map((m, i) => (
           <div key={`${m.url}-${i}`} className="group relative h-28 w-28 overflow-hidden rounded-lg border bg-muted">
             {m.mimeType?.startsWith("video/") ? (
-              <video src={m.url} className="h-full w-full object-cover" muted />
-            ) : m.url ? (
-              <Image src={m.url} alt={m.altText || ""} fill className="object-cover" unoptimized sizes="112px" />
+              <video src={m.displayUrl || m.url} className="h-full w-full object-cover" muted />
+            ) : (m.displayUrl || m.url) ? (
+              <Image src={m.displayUrl || m.url || ""} alt={m.altText || ""} fill className="object-cover" unoptimized sizes="112px" />
             ) : null}
             {!disabled ? (
               <button type="button" onClick={() => setMedia((arr) => arr.filter((_, j) => j !== i))} className="absolute right-1 top-1 rounded-full bg-background/80 p-1 opacity-0 transition-opacity group-hover:opacity-100" aria-label="Remove">

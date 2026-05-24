@@ -3,11 +3,43 @@ import type { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth/guard";
 import { connectDB } from "@/lib/db";
 import { Content } from "@/models/Content";
+import { MediaFile } from "@/models/MediaFile";
 import { badRequest, forbidden, notFound, ok, serverError } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
 import { canEditContent, canDeleteContent } from "@/lib/content-policy";
 import { canReadContentForProject } from "@/lib/project-access";
 import { CONTENT_TYPES, FUNNEL_STAGES, PLATFORMS, PRIORITIES } from "@/lib/constants";
+import { presignDownload, storageConfigured } from "@/lib/storage";
+
+const MEDIA_DISPLAY_TTL_SECONDS = 60 * 60;
+
+// Embedded mediaFiles entries only persist the public URL, which is useless
+// when the bucket is private. Look up the corresponding MediaFile docs by id,
+// presign their storageKey, and inject a short-lived displayUrl per entry.
+async function withMediaDisplayUrls(content: unknown): Promise<unknown> {
+  if (!storageConfigured() || !content) return content;
+  const obj = typeof (content as { toObject?: () => unknown }).toObject === "function"
+    ? (content as { toObject: () => Record<string, unknown> }).toObject()
+    : (content as Record<string, unknown>);
+  const media = Array.isArray(obj.mediaFiles) ? (obj.mediaFiles as Array<Record<string, unknown>>) : [];
+  if (!media.length) return obj;
+  const ids = media.map((m) => m.mediaFile).filter(Boolean) as string[];
+  if (!ids.length) return obj;
+  const files = await MediaFile.find({ _id: { $in: ids } }).select("_id storageKey").lean();
+  const byId = new Map(files.map((f) => [String(f._id), f.storageKey]));
+  obj.mediaFiles = await Promise.all(
+    media.map(async (m) => {
+      const key = byId.get(String(m.mediaFile));
+      if (!key) return m;
+      try {
+        return { ...m, displayUrl: await presignDownload(key, MEDIA_DISPLAY_TTL_SECONDS) };
+      } catch {
+        return m;
+      }
+    })
+  );
+  return obj;
+}
 
 export async function GET(_req: NextRequest, ctx: RouteContext<"/api/content/[id]">) {
   try {
@@ -35,7 +67,7 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/api/content/[id
     ) {
       return forbidden("You do not have access to this content");
     }
-    return ok({ content: c });
+    return ok({ content: await withMediaDisplayUrls(c) });
   } catch (err) {
     return serverError(err);
   }

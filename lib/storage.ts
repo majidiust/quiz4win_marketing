@@ -35,8 +35,20 @@ export function buildStorageKey(prefix: string, originalName: string): string {
 export function publicUrlFor(key: string): string {
   const base = env.storage.publicUrl?.replace(/\/+$/, "");
   if (base) return `${base}/${key}`;
+  // Fallback: build a virtual-hosted-style URL from the endpoint and bucket
+  // (works on DO Spaces, AWS S3, MinIO with virtual-hosted style enabled).
   const ep = env.storage.endpoint?.replace(/\/+$/, "");
-  return `${ep}/${env.storage.bucket}/${key}`;
+  if (!ep) return key;
+  try {
+    const u = new URL(ep);
+    // If the bucket isn't already part of the host, prefix it (virtual host).
+    if (!u.host.startsWith(`${env.storage.bucket}.`)) {
+      u.host = `${env.storage.bucket}.${u.host}`;
+    }
+    return `${u.protocol}//${u.host}/${key}`;
+  } catch {
+    return `${ep}/${env.storage.bucket}/${key}`;
+  }
 }
 
 export async function presignUpload(key: string, contentType: string, expiresIn = 300): Promise<string> {

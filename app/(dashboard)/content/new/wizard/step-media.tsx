@@ -47,7 +47,7 @@ export function StepMedia({ state, set, userId }: Props) {
           headers: { "Content-Type": file.type || "application/octet-stream" },
         });
         if (!put.ok) throw new Error(`Upload failed for ${file.name}`);
-        const reg = await api<{ media: { _id: string; url: string; mimeType: string; thumbnailUrl?: string } }>("/api/media", {
+        const reg = await api<{ media: { _id: string; url: string; mimeType: string; thumbnailUrl?: string; displayUrl?: string } }>("/api/media", {
           json: {
             storageKey: presign.key,
             url: presign.publicUrl,
@@ -65,6 +65,7 @@ export function StepMedia({ state, set, userId }: Props) {
           order: next.length,
           originalFilename: file.name,
           size: file.size,
+          displayUrl: reg.media.displayUrl || reg.media.url,
         });
       }
       set("media", next);
@@ -100,7 +101,7 @@ export function StepMedia({ state, set, userId }: Props) {
         {state.media.map((m, i) => (
           <div key={`${m.url}-${i}`} className="group relative h-28 w-28 overflow-hidden rounded-lg border bg-muted">
             {m.mimeType.startsWith("image/") ? (
-              <Image src={m.url} alt={m.altText || ""} fill className="object-cover" unoptimized sizes="112px" />
+              <Image src={m.displayUrl || m.url} alt={m.altText || ""} fill className="object-cover" unoptimized sizes="112px" />
             ) : m.mimeType.startsWith("video/") ? (
               <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-muted-foreground">
                 <VideoIcon className="h-6 w-6" />

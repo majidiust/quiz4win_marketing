@@ -2,9 +2,28 @@ import { z } from "zod";
 import type { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth/guard";
 import { connectDB } from "@/lib/db";
-import { MediaFile } from "@/models/MediaFile";
+import { MediaFile, type MediaFileDoc } from "@/models/MediaFile";
 import { badRequest, ok, parsePagination, serverError } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
+import { presignDownload, storageConfigured } from "@/lib/storage";
+
+// Signed GET URLs expire; pick a window long enough to use across the wizard,
+// list view, and a typical content review session without re-fetching.
+const DISPLAY_URL_TTL_SECONDS = 60 * 60; // 1 hour
+
+async function attachDisplayUrl<T extends Pick<MediaFileDoc, "storageKey"> & { toObject?: () => unknown }>(
+  doc: T
+): Promise<Record<string, unknown>> {
+  const obj = (doc.toObject ? doc.toObject() : doc) as Record<string, unknown>;
+  if (storageConfigured() && doc.storageKey) {
+    try {
+      obj.displayUrl = await presignDownload(doc.storageKey, DISPLAY_URL_TTL_SECONDS);
+    } catch {
+      // Fall back to the stored canonical url if signing fails.
+    }
+  }
+  return obj;
+}
 
 const RegisterBody = z.object({
   originalFilename: z.string(),
@@ -45,7 +64,7 @@ export async function POST(req: Request) {
       message: body.data.originalFilename,
     });
 
-    return ok({ media }, 201);
+    return ok({ media: await attachDisplayUrl(media) }, 201);
   } catch (err) {
     return serverError(err);
   }
@@ -67,7 +86,8 @@ export async function GET(req: NextRequest) {
       MediaFile.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
       MediaFile.countDocuments(filter),
     ]);
-    return ok({ items, total, page, limit });
+    const withDisplay = await Promise.all(items.map((m) => attachDisplayUrl(m)));
+    return ok({ items: withDisplay, total, page, limit });
   } catch (err) {
     return serverError(err);
   }

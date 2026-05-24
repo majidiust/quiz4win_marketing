@@ -20,6 +20,9 @@ export interface WizardMedia {
   // Local-only fields used during the wizard, stripped before posting.
   originalFilename?: string;
   size?: number;
+  // Short-lived signed GET URL returned by /api/media; used for previews
+  // because the underlying objects are stored privately.
+  displayUrl?: string;
 }
 
 export interface WizardState {
