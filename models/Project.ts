@@ -51,7 +51,17 @@ const ProjectSchema = new Schema(
   { timestamps: true, collection: "quiz4win_marketing_projects" }
 );
 
-ProjectSchema.index({ projectName: "text", description: "text" });
+// MongoDB text indexes interpret any document field literally named `language`
+// as a per-document stemming override and reject codes the stemmer does not
+// support (error 17262). We do not currently store such a field on projects,
+// but `targetLanguages` items use ISO 639 codes and any future migration that
+// normalises one of them into a scalar `language` field would resurrect the
+// bug seen on Content. Set language_override prophylactically so this schema
+// is immune to the collision regardless of future field additions.
+ProjectSchema.index(
+  { projectName: "text", description: "text" },
+  { default_language: "none", language_override: "_textLanguage", name: "project_text_index" }
+);
 
 export type ProjectDoc = InferSchemaType<typeof ProjectSchema> & {
   _id: mongoose.Types.ObjectId;
