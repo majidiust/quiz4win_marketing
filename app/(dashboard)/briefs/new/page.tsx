@@ -1,7 +1,7 @@
-import { NewBriefForm } from "./new-brief-form";
+import { BriefEditor } from "@/components/dashboard/brief-editor";
 
 export const metadata = { title: "New Brief" };
 
 export default function NewBriefPage() {
-  return <NewBriefForm />;
+  return <BriefEditor mode="create" />;
 }

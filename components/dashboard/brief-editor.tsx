@@ -28,13 +28,14 @@ interface UserOption { _id: string; firstName?: string; lastName?: string; email
 
 const NONE = "__none__";
 
-export function NewBriefForm() {
+export function BriefEditor({ mode = "create", id }: { mode?: "create" | "edit"; id?: string }) {
   const router = useRouter();
-  const { user } = useUser();
+  const { user, hasPermission } = useUser();
   const canPostGeneral = !!user && ["super_admin", "admin", "project_manager"].includes(user.role);
 
   const [projects, setProjects] = React.useState<ProjectOption[]>([]);
   const [assignees, setAssignees] = React.useState<UserOption[]>([]);
+  const [loading, setLoading] = React.useState(mode === "edit");
   const [saving, setSaving] = React.useState(false);
 
   const [form, setForm] = React.useState({
@@ -55,8 +56,6 @@ export function NewBriefForm() {
     suggestedCTA: "",
     deadline: "",
     assignedTo: NONE,
-    // Recurrence (template) section. When `recurring` is on, the brief is
-    // saved as a template that spawns instances at each occurrence.
     recurring: false,
     recFreq: "weekly" as RecurrenceFreq,
     recInterval: 1,
@@ -69,14 +68,47 @@ export function NewBriefForm() {
   });
 
   React.useEffect(() => {
-    api<{ items: ProjectOption[] }>("/api/projects?limit=200")
-      .then((r) => setProjects(r.items || []))
-      .catch(() => setProjects([]));
-    // Producers + general roles that can hold a brief.
-    api<{ items: UserOption[] }>("/api/users?limit=200")
-      .then((r) => setAssignees((r.items || []).filter((u) => ["content_producer", "marketing_user", "project_manager"].includes(u.role))))
-      .catch(() => setAssignees([]));
-  }, []);
+    Promise.all([
+      api<{ items: ProjectOption[] }>("/api/projects?limit=200"),
+      api<{ items: UserOption[] }>("/api/users?limit=200")
+    ]).then(([p, u]) => {
+      setProjects(p.items || []);
+      setAssignees((u.items || []).filter((x) => ["content_producer", "marketing_user", "project_manager"].includes(x.role)));
+    }).catch(() => {});
+
+    if (mode === "edit" && id) {
+      api<{ brief: any }>(`/api/briefs/${id}`).then(({ brief: b }) => {
+        setForm({
+          title: b.title || "",
+          description: b.description || "",
+          goal: b.goal || "",
+          project: b.project?._id || b.project || NONE,
+          isGeneralMarketing: !!b.isGeneralMarketing,
+          platform: b.platform || "",
+          contentType: b.contentType || "",
+          funnelStage: b.funnelStage || "",
+          priority: b.priority || "normal",
+          language: b.language || "",
+          targetCountry: b.targetCountry || "",
+          targetAudience: b.targetAudience || "",
+          suggestedHashtags: b.suggestedHashtags?.join(", ") || "",
+          suggestedMentions: b.suggestedMentions?.join(", ") || "",
+          suggestedCTA: b.suggestedCTA || "",
+          deadline: b.deadline ? new Date(b.deadline).toISOString().slice(0, 16) : "",
+          assignedTo: b.assignedTo?._id || b.assignedTo || NONE,
+          recurring: !!b.isTemplate,
+          recFreq: b.recurrence?.freq || "weekly",
+          recInterval: b.recurrence?.interval || 1,
+          recByweekday: b.recurrence?.byweekday || [],
+          recBymonthday: b.recurrence?.bymonthday?.toString() || "",
+          recStartsAt: b.recurrence?.startsAt ? new Date(b.recurrence.startsAt).toISOString().slice(0, 16) : "",
+          recEndsAt: b.recurrence?.endsAt ? new Date(b.recurrence.endsAt).toISOString().slice(0, 16) : "",
+          recTimezone: b.recurrence?.timezone || (typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC"),
+          deadlineOffsetHours: b.deadlineOffsetHours?.toString() || "",
+        });
+      }).finally(() => setLoading(false));
+    }
+  }, [mode, id]);
 
   function setField<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
     setForm((s) => ({ ...s, [k]: v }));
@@ -104,57 +136,73 @@ export function NewBriefForm() {
             endsAt: form.recEndsAt ? new Date(form.recEndsAt).toISOString() : undefined,
             timezone: form.recTimezone || "UTC",
           }
-        : undefined;
+        : null;
       const payload: Record<string, unknown> = {
         title: form.title.trim(),
-        description: form.description.trim() || undefined,
-        goal: form.goal.trim() || undefined,
+        description: form.description.trim() || "",
+        goal: form.goal.trim() || "",
         isGeneralMarketing: form.isGeneralMarketing,
-        project: form.isGeneralMarketing ? undefined : form.project === NONE ? undefined : form.project,
-        platform: form.platform || undefined,
-        contentType: form.contentType || undefined,
-        funnelStage: form.funnelStage || undefined,
+        project: form.isGeneralMarketing ? null : form.project === NONE ? null : form.project,
+        platform: form.platform || null,
+        contentType: form.contentType || null,
+        funnelStage: form.funnelStage || null,
         priority: form.priority,
-        language: form.language || undefined,
-        targetCountry: form.targetCountry || undefined,
-        targetAudience: form.targetAudience || undefined,
+        language: form.language || "",
+        targetCountry: form.targetCountry || "",
+        targetAudience: form.targetAudience || "",
         suggestedHashtags: form.suggestedHashtags
-          ? form.suggestedHashtags.split(/[,\s]+/).map((s) => s.replace(/^#/, "")).filter(Boolean)
-          : undefined,
+          ? form.suggestedHashtags.split(/[,\s]+/).map((s) => s.trim().replace(/^#/, "")).filter(Boolean)
+          : [],
         suggestedMentions: form.suggestedMentions
-          ? form.suggestedMentions.split(/[,\s]+/).map((s) => s.replace(/^@/, "")).filter(Boolean)
-          : undefined,
-        suggestedCTA: form.suggestedCTA || undefined,
-        deadline: form.deadline ? new Date(form.deadline).toISOString() : undefined,
-        assignedTo: form.assignedTo === NONE ? undefined : form.assignedTo,
-        isTemplate: form.recurring || undefined,
+          ? form.suggestedMentions.split(/[,\s]+/).map((s) => s.trim().replace(/^@/, "")).filter(Boolean)
+          : [],
+        suggestedCTA: form.suggestedCTA || "",
+        deadline: form.deadline ? new Date(form.deadline).toISOString() : null,
+        assignedTo: form.assignedTo === NONE ? null : form.assignedTo,
+        isTemplate: form.recurring,
         recurrence,
         deadlineOffsetHours:
-          form.recurring && form.deadlineOffsetHours ? Number(form.deadlineOffsetHours) : undefined,
+          form.recurring && form.deadlineOffsetHours ? Number(form.deadlineOffsetHours) : null,
       };
-      const res = await api<{ id: string }>("/api/briefs", { json: payload });
-      toast.success(form.recurring ? "Recurring template created" : "Brief created");
-      router.replace(`/briefs/${res.id}`);
+
+      if (mode === "create") {
+        const res = await api<{ id: string }>("/api/briefs", { method: "POST", json: payload });
+        toast.success(form.recurring ? "Recurring template created" : "Brief created");
+        router.replace(`/briefs/${res.id}`);
+      } else {
+        await api(`/api/briefs/${id}`, { method: "PATCH", json: payload });
+        toast.success("Brief updated");
+        router.push(`/briefs/${id}`);
+      }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create brief");
+      toast.error(err instanceof Error ? err.message : "Failed to save brief");
     } finally {
       setSaving(false);
     }
   }
 
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-9 w-72" />
+        <Skeleton className="h-48 w-full" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader
-        title="New Brief"
-        description="Define what should be produced. Producers will create content against this brief."
+        title={mode === "create" ? "New Brief" : `Edit Brief`}
+        description={mode === "create" ? "Define what should be produced." : "Update the brief details."}
         actions={
           <>
             <Button variant="outline" asChild>
-              <Link href="/briefs"><ArrowLeft className="h-4 w-4" /> Back</Link>
+              <Link href={mode === "create" ? "/briefs" : `/briefs/${id}`}><ArrowLeft className="h-4 w-4" /> Back</Link>
             </Button>
             <Button onClick={submit} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {saving ? "Saving…" : "Create brief"}
+              {saving ? "Saving…" : mode === "create" ? "Create brief" : "Save changes"}
             </Button>
           </>
         }
@@ -177,7 +225,6 @@ export function NewBriefForm() {
           </div>
         </CardContent>
       </Card>
-
       <Card>
         <CardHeader><CardTitle>Scope</CardTitle></CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
@@ -335,7 +382,6 @@ export function NewBriefForm() {
                       );
                     })}
                   </div>
-                  <p className="text-xs text-muted-foreground">Leave empty to repeat on the same weekday as the start date.</p>
                 </div>
               ) : null}
               {form.recFreq === "monthly" ? (
@@ -370,4 +416,8 @@ export function NewBriefForm() {
       </Card>
     </div>
   );
+}
+
+function Skeleton({ className }: { className?: string }) {
+  return <div className={`animate-pulse rounded-md bg-muted ${className}`} />;
 }

@@ -210,7 +210,8 @@ export function BriefDetailClient({ id }: { id: string }) {
   }
 
   const isOwner = !!(user && doc.createdBy && doc.createdBy._id === user.id);
-  const canEdit = hasPermission("briefs.update.any") || (isOwner && hasPermission("briefs.update.own"));
+  const isEditableStatus = doc.status !== "completed" && doc.status !== "archived";
+  const canEdit = hasPermission("briefs.update.any") || (isOwner && isEditableStatus && hasPermission("briefs.update.own"));
   const canDelete = hasPermission("briefs.delete.any");
   const canAssign = hasPermission("briefs.assign");
   const canComment = hasPermission("briefs.comment");
@@ -229,6 +230,11 @@ export function BriefDetailClient({ id }: { id: string }) {
             <Button variant="outline" asChild>
               <Link href="/briefs"><ArrowLeft className="h-4 w-4" /> Back</Link>
             </Button>
+            {canEdit ? (
+              <Button variant="outline" asChild>
+                <Link href={`/briefs/${doc._id}/edit`}>Edit brief</Link>
+              </Button>
+            ) : null}
             {canCreateContent ? (
               <Button asChild>
                 <Link href={`/content/new?briefId=${doc._id}`}><Plus className="h-4 w-4" /> Create content</Link>
