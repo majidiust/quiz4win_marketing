@@ -41,10 +41,14 @@ export async function GET(req: NextRequest) {
     const createdBy = sp.get("createdBy");
     const contentType = sp.get("contentType");
     const isGeneral = sp.get("general");
-    const mine = sp.get("mine") === "true";
+    const mineLegacy = sp.get("mine") === "true";
     const includeDeleted = sp.get("includeDeleted") === "true";
     // Templates filter: "only" / "exclude" / null (include both).
     const templates = sp.get("templates");
+    // scope=mine (default) restricts to briefs created by or assigned to the
+    // requester regardless of role. scope=all opens the view subject to
+    // permissions. The legacy `mine=true` query is treated as scope=mine.
+    const scope = sp.get("scope") === "all" && !mineLegacy ? "all" : "mine";
 
     await connectDB();
 
@@ -61,7 +65,6 @@ export async function GET(req: NextRequest) {
     if (createdBy) filter.createdBy = createdBy;
     if (contentType) filter.contentType = contentType;
     if (isGeneral === "true") filter.isGeneralMarketing = true;
-    if (mine) filter.assignedTo = auth.ctx.userId;
     if (templates === "only") filter.isTemplate = true;
     else if (templates === "exclude") filter.isTemplate = { $ne: true };
     const templateId = sp.get("template");
@@ -71,23 +74,36 @@ export async function GET(req: NextRequest) {
       filter.$or = [{ title: re }, { description: re }, { goal: re }];
     }
 
-    // Scope: anyone without briefs.read.any only sees briefs they created,
-    // briefs assigned to them, or briefs whose project they are assigned to.
-    if (!hasPermission(auth.ctx.role, "briefs.read.any")) {
+    // Scoping:
+    // - scope=mine (default): personal queue, regardless of role. Anything
+    //   the requester created or is assigned to.
+    // - scope=all + briefs.read.any: see everything subject to filters.
+    // - scope=all without briefs.read.any: project-scoped fallback
+    //   (own + assigned + general marketing + assigned projects).
+    const canSeeAny = hasPermission(auth.ctx.role, "briefs.read.any");
+    const applyScope = (clauses: Record<string, unknown>[]) => {
+      if (filter.$or) {
+        const text = filter.$or;
+        delete filter.$or;
+        filter.$and = [{ $or: text }, { $or: clauses }];
+      } else {
+        filter.$or = clauses;
+      }
+    };
+    if (scope === "mine") {
+      applyScope([
+        { createdBy: auth.ctx.userId },
+        { assignedTo: auth.ctx.userId },
+      ]);
+    } else if (!canSeeAny) {
       const assigned = userAssignedProjectIds(auth.ctx.user);
-      const scope: Record<string, unknown>[] = [
+      const fallback: Record<string, unknown>[] = [
         { createdBy: auth.ctx.userId },
         { assignedTo: auth.ctx.userId },
         { isGeneralMarketing: true },
       ];
-      if (assigned.length) scope.push({ project: { $in: assigned } });
-      if (filter.$or) {
-        const text = filter.$or;
-        delete filter.$or;
-        filter.$and = [{ $or: text }, { $or: scope }];
-      } else {
-        filter.$or = scope;
-      }
+      if (assigned.length) fallback.push({ project: { $in: assigned } });
+      applyScope(fallback);
     }
 
     const [items, total] = await Promise.all([

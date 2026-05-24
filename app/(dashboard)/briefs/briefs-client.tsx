@@ -46,7 +46,12 @@ export function BriefsClient() {
   const [status, setStatus] = React.useState(sp.get("status") || ANY);
   const [platform, setPlatform] = React.useState(sp.get("platform") || ANY);
   const [project, setProject] = React.useState(sp.get("project") || ANY);
-  const [mine, setMine] = React.useState(sp.get("mine") === "true");
+  // Scope toggle: "mine" (default) = created by me OR assigned to me.
+  // "all" = everything I'm allowed to see (gated by briefs.read.any on the API).
+  const canSeeAll = hasPermission("briefs.read.any");
+  const [scope, setScope] = React.useState<"mine" | "all">(
+    sp.get("scope") === "all" && canSeeAll ? "all" : "mine"
+  );
   // "active" (default) = active only (templates excluded), "only" = templates,
   // "all" = both. Active-only matches the legacy view.
   const [templates, setTemplates] = React.useState<"active" | "only" | "all">(
@@ -72,7 +77,7 @@ export function BriefsClient() {
     if (status !== ANY) params.set("status", status);
     if (platform !== ANY) params.set("platform", platform);
     if (project !== ANY) params.set("project", project);
-    if (mine) params.set("mine", "true");
+    if (scope === "all") params.set("scope", "all");
     if (templates === "only") params.set("templates", "only");
     else if (templates === "active") params.set("templates", "exclude");
     params.set("page", String(page));
@@ -84,7 +89,7 @@ export function BriefsClient() {
     } finally {
       setLoading(false);
     }
-  }, [q, status, platform, project, mine, templates, page, router]);
+  }, [q, status, platform, project, scope, templates, page, router]);
 
   React.useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -93,10 +98,10 @@ export function BriefsClient() {
   }, [fetchList]);
 
   function resetFilters() {
-    setQ(""); setStatus(ANY); setPlatform(ANY); setProject(ANY); setMine(false); setTemplates("active"); setPage(1);
+    setQ(""); setStatus(ANY); setPlatform(ANY); setProject(ANY); setScope("mine"); setTemplates("active"); setPage(1);
   }
 
-  const hasActiveFilters = q || status !== ANY || platform !== ANY || project !== ANY || mine || templates !== "active";
+  const hasActiveFilters = q || status !== ANY || platform !== ANY || project !== ANY || scope !== "mine" || templates !== "active";
   const canCreate = hasPermission("briefs.create");
 
   return (
@@ -142,15 +147,29 @@ export function BriefsClient() {
               </SelectContent>
             </Select>
             <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant={mine ? "default" : "outline"}
-                onClick={() => { setMine((m) => !m); setPage(1); }}
-                disabled={!user}
-              >
-                Assigned to me
-              </Button>
+              {canSeeAll ? (
+                <div className="inline-flex rounded-md border bg-background p-0.5" role="group" aria-label="Scope">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={scope === "mine" ? "default" : "ghost"}
+                    className="h-7 px-2.5"
+                    onClick={() => { setScope("mine"); setPage(1); }}
+                    disabled={!user}
+                  >
+                    Mine
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={scope === "all" ? "default" : "ghost"}
+                    className="h-7 px-2.5"
+                    onClick={() => { setScope("all"); setPage(1); }}
+                  >
+                    All
+                  </Button>
+                </div>
+              ) : null}
               <Select value={templates} onValueChange={(v) => { setTemplates(v as "active" | "only" | "all"); setPage(1); }}>
                 <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -170,7 +189,7 @@ export function BriefsClient() {
       </Card>
 
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           {loading && !data ? (
             <div className="space-y-2 p-4">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
           ) : !data || data.items.length === 0 ? (

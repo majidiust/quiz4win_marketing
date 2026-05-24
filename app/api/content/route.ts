@@ -44,6 +44,10 @@ export async function GET(req: NextRequest) {
     const dateTo = sp.get("dateTo");
     const isGeneral = sp.get("general");
     const includeDeleted = sp.get("includeDeleted") === "true";
+    // scope=mine (default) restricts to content created by or assigned to the
+    // requester regardless of role. scope=all opens the view subject to
+    // permissions (see below).
+    const scope = sp.get("scope") === "all" ? "all" : "mine";
 
     await connectDB();
 
@@ -67,38 +71,44 @@ export async function GET(req: NextRequest) {
       filter.$or = [{ title: re }, { caption: re }, { campaignName: re }, { internalReferenceId: re }];
     }
 
-    // Project-based access: users without "content.read.any" can only see
-    // content they authored, content from their assigned projects, or general
-    // marketing content. A project filter from the query is intersected with
-    // this scope so users can never widen their view.
-    if (!hasPermission(auth.ctx.role, "content.read.any")) {
+    // Scoping:
+    // - scope=mine (default): personal queue, regardless of role. Anything
+    //   the requester created or is assigned to.
+    // - scope=all + content.read.any: see everything subject to filters.
+    // - scope=all without content.read.any: project-scoped fallback
+    //   (own + assigned + general marketing). A project filter outside the
+    //   assigned set is intersected with own/assigned so users can never
+    //   widen their view.
+    const canSeeAny = hasPermission(auth.ctx.role, "content.read.any");
+    const applyScope = (clauses: Record<string, unknown>[]) => {
+      if (filter.$or) {
+        const text = filter.$or;
+        delete filter.$or;
+        (filter as Record<string, unknown>).$and = [{ $or: text }, { $or: clauses }];
+      } else {
+        filter.$or = clauses;
+      }
+    };
+    if (scope === "mine") {
+      applyScope([
+        { createdBy: auth.ctx.userId },
+        { assignedTo: auth.ctx.userId },
+      ]);
+    } else if (!canSeeAny) {
       const assigned = userAssignedProjectIds(auth.ctx.user);
       if (project && !assigned.includes(String(project))) {
-        // Requested project the user has no access to: only their own content
-        // in that project would be visible.
-        const own: Record<string, unknown>[] = [
+        applyScope([
           { createdBy: auth.ctx.userId, project },
-        ];
-        if (filter.$or) {
-          const text = filter.$or;
-          delete filter.$or;
-          (filter as Record<string, unknown>).$and = [{ $or: text }, { $or: own }];
-        } else {
-          filter.$or = own;
-        }
+          { assignedTo: auth.ctx.userId, project },
+        ]);
       } else {
-        const scope: Record<string, unknown>[] = [
+        const fallback: Record<string, unknown>[] = [
           { createdBy: auth.ctx.userId },
+          { assignedTo: auth.ctx.userId },
           { isGeneralMarketing: true },
         ];
-        if (assigned.length) scope.push({ project: { $in: assigned } });
-        if (filter.$or) {
-          const text = filter.$or;
-          delete filter.$or;
-          (filter as Record<string, unknown>).$and = [{ $or: text }, { $or: scope }];
-        } else {
-          filter.$or = scope;
-        }
+        if (assigned.length) fallback.push({ project: { $in: assigned } });
+        applyScope(fallback);
       }
     }
 

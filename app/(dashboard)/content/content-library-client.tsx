@@ -53,6 +53,12 @@ export function ContentLibraryClient() {
   const [platform, setPlatform] = React.useState(sp.get("platform") || ANY);
   const [contentType, setContentType] = React.useState(sp.get("contentType") || ANY);
   const [project, setProject] = React.useState(sp.get("project") || ANY);
+  // Scope: "mine" (default) = created by or assigned to the user.
+  // "all" = everything the user is allowed to see (gated by content.read.any).
+  const canSeeAll = hasPermission("content.read.any");
+  const [scope, setScope] = React.useState<"mine" | "all">(
+    sp.get("scope") === "all" && canSeeAll ? "all" : "mine"
+  );
   const [page, setPage] = React.useState(parseInt(sp.get("page") || "1", 10));
 
   const [projects, setProjects] = React.useState<ProjectOption[]>([]);
@@ -74,6 +80,7 @@ export function ContentLibraryClient() {
     if (platform !== ANY) params.set("platform", platform);
     if (contentType !== ANY) params.set("contentType", contentType);
     if (project !== ANY) params.set("project", project);
+    if (scope === "all") params.set("scope", "all");
     params.set("page", String(page));
     params.set("limit", "20");
     try {
@@ -84,7 +91,7 @@ export function ContentLibraryClient() {
     } finally {
       setLoading(false);
     }
-  }, [q, status, platform, contentType, project, page, router]);
+  }, [q, status, platform, contentType, project, scope, page, router]);
 
   React.useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -100,10 +107,11 @@ export function ContentLibraryClient() {
     setPlatform(ANY);
     setContentType(ANY);
     setProject(ANY);
+    setScope("mine");
     setPage(1);
   }
 
-  const hasActiveFilters = q || status !== ANY || platform !== ANY || contentType !== ANY || project !== ANY;
+  const hasActiveFilters = q || status !== ANY || platform !== ANY || contentType !== ANY || project !== ANY || scope !== "mine";
 
   return (
     <div className="space-y-5">
@@ -168,18 +176,40 @@ export function ContentLibraryClient() {
               </SelectContent>
             </Select>
           </div>
-          {hasActiveFilters ? (
-            <div className="mt-3 flex justify-end">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            {canSeeAll ? (
+              <div className="inline-flex rounded-md border bg-background p-0.5" role="group" aria-label="Scope">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={scope === "mine" ? "default" : "ghost"}
+                  className="h-7 px-2.5"
+                  onClick={() => { setScope("mine"); setPage(1); }}
+                >
+                  Mine
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={scope === "all" ? "default" : "ghost"}
+                  className="h-7 px-2.5"
+                  onClick={() => { setScope("all"); setPage(1); }}
+                >
+                  All
+                </Button>
+              </div>
+            ) : <span />}
+            {hasActiveFilters ? (
               <Button variant="ghost" size="sm" onClick={resetFilters}>
                 <X className="h-3.5 w-3.5" /> Clear filters
               </Button>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </CardContent>
       </Card>
 
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           {loading && !data ? (
             <div className="space-y-2 p-4">
               {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
