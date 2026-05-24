@@ -36,7 +36,7 @@ export const navSections: NavSection[] = [
     label: "Content",
     items: [
       { href: "/briefs", label: "Briefs", icon: ClipboardList, permission: "briefs.read.own", match: (p) => p.startsWith("/briefs") },
-      { href: "/content", label: "Content Library", icon: FileText, match: (p) => p === "/content" || p.startsWith("/content/") },
+      { href: "/content", label: "Content Library", icon: FileText, match: (p) => p === "/content" || (p.startsWith("/content/") && p !== "/content/new") },
       { href: "/calendar", label: "Calendar", icon: CalendarDays, permission: "calendar.read" },
       { href: "/content/new", label: "Create Content", icon: Sparkles, permission: "content.create" },
     ],
