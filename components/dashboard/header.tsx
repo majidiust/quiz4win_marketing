@@ -72,12 +72,12 @@ export function Header({ onMenuClick }: HeaderProps) {
             <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href="/settings/profile">
+              <Link href="/settings?tab=profile">
                 <UserIcon className="h-4 w-4" /> Profile
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/settings/security">
+              <Link href="/settings?tab=security">
                 <KeyRound className="h-4 w-4" /> Security & MFA
               </Link>
             </DropdownMenuItem>
