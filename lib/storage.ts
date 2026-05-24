@@ -15,6 +15,12 @@ function getClient(): S3Client {
       secretAccessKey: env.storage.secretKey,
     },
     forcePathStyle: env.storage.forcePathStyle,
+    // DO Spaces (and most S3-compatible services) do not implement the new
+    // CRC32 checksum trailer that AWS SDK v3 enables by default since 3.729.
+    // Leaving it on causes presigned PUTs to fail with SignatureDoesNotMatch
+    // because the browser never sends the matching x-amz-checksum-* headers.
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
   });
   return _client;
 }
