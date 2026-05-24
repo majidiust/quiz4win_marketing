@@ -67,28 +67,28 @@ async function fetchContent(args: {
   if (platform) filter.platform = platform;
   if (status) filter.status = status;
   if (user) filter.createdBy = user;
-  filter.$or = [
+
+  const dateRange = [
     { publishDate: { $gte: start, $lte: end } },
     { scheduledAt: { $gte: start, $lte: end } },
     { publishedAt: { $gte: start, $lte: end } },
   ];
-  if (!hasPermission(auth.ctx.role, "content.read.any")) {
-    const assignedProjects = auth.ctx.user.assignedProjects || [];
+
+  // Mirror the same scoping logic as GET /api/content:
+  //   super_admin and anyone with content.read.any → unrestricted.
+  //   Everyone else → only items they created or are assigned to.
+  if (hasPermission(auth.ctx.role, "content.read.any")) {
+    filter.$or = dateRange;
+  } else {
     filter.$and = [
-      { $or: filter.$or as unknown[] },
-      {
-        $or: [
-          { createdBy: auth.ctx.userId },
-          { project: { $in: assignedProjects } },
-          { isGeneralMarketing: true },
-        ],
-      },
+      { $or: dateRange },
+      { $or: [{ createdBy: auth.ctx.userId }, { assignedTo: auth.ctx.userId }] },
     ];
-    delete filter.$or;
   }
+
   return Content.find(filter)
     .select(
-      "title slug status platform contentType project isGeneralMarketing publishDate publishTime scheduledAt publishedAt thumbnail mediaFiles createdBy campaignName priority"
+      "title slug status platform contentType project isGeneralMarketing publishDate publishTime scheduledAt publishedAt thumbnail mediaFiles createdBy assignedTo campaignName priority"
     )
     .populate("project", "projectName slug isGeneralMarketing brandColors")
     .populate("createdBy", "firstName lastName email profileImage")
@@ -112,15 +112,17 @@ async function fetchBriefs(args: {
   if (project) filter.project = project;
   if (platform) filter.platform = platform;
   if (user) filter.createdBy = user;
+
+  // Mirror the same scoping logic as GET /api/briefs:
+  //   super_admin and anyone with briefs.read.any → unrestricted.
+  //   Everyone else → only briefs they created or are assigned to.
   if (!hasPermission(auth.ctx.role, "briefs.read.any")) {
-    const assignedProjects = auth.ctx.user.assignedProjects || [];
     filter.$or = [
       { createdBy: auth.ctx.userId },
       { assignedTo: auth.ctx.userId },
-      { project: { $in: assignedProjects } },
-      { isGeneralMarketing: true },
     ];
   }
+
   return ContentBrief.find(filter)
     .select(
       "title status platform contentType project isGeneralMarketing deadline assignedTo createdBy priority"
