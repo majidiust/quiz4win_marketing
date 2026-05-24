@@ -71,6 +71,25 @@ export async function presignDownload(key: string, expiresIn = 300): Promise<str
   return getSignedUrl(client, cmd, { expiresIn });
 }
 
+// Signed GET that overrides the response's Content-Disposition so the browser
+// downloads the object with the original filename instead of opening it.
+// Uses RFC 5987 (filename*) to preserve non-ASCII names safely.
+export async function presignAttachmentDownload(
+  key: string,
+  filename: string,
+  expiresIn = 300
+): Promise<string> {
+  const client = getClient();
+  const safeAscii = filename.replace(/[^\x20-\x7E]+/g, "_").replace(/"/g, "'");
+  const utf8 = encodeURIComponent(filename);
+  const cmd = new GetObjectCommand({
+    Bucket: env.storage.bucket,
+    Key: key,
+    ResponseContentDisposition: `attachment; filename="${safeAscii}"; filename*=UTF-8''${utf8}`,
+  });
+  return getSignedUrl(client, cmd, { expiresIn });
+}
+
 export async function deleteObject(key: string): Promise<void> {
   const client = getClient();
   await client.send(new DeleteObjectCommand({ Bucket: env.storage.bucket, Key: key }));

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { Loader2, Plus, X, FileText, Music, Video as VideoIcon } from "lucide-react";
+import { Download, Loader2, Plus, X, FileText, Music, Video as VideoIcon } from "lucide-react";
 import { toast } from "sonner";
 import {
   CONTENT_TYPE_MEDIA_KINDS, MEDIA_KIND_ACCEPT, MEDIA_KIND_LABELS,
@@ -122,6 +122,16 @@ export function StepMedia({ state, set, userId }: Props) {
               <span className="absolute bottom-1 left-1 rounded bg-background/80 px-1 py-px text-[10px] text-muted-foreground">
                 {formatBytes(m.size)}
               </span>
+            ) : null}
+            {m.mediaFile ? (
+              <a
+                href={`/api/media/${m.mediaFile}/download`}
+                className="absolute bottom-1 right-1 rounded-full bg-background/80 p-1 opacity-0 transition-opacity group-hover:opacity-100"
+                aria-label="Download"
+                title="Download"
+              >
+                <Download className="h-3 w-3" />
+              </a>
             ) : null}
             <button
               type="button"

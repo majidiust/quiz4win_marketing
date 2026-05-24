@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { Loader2, Plus, X } from "lucide-react";
+import { Download, Loader2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -356,6 +356,16 @@ function MediaManager({ media, setMedia, disabled, contentId }: { media: MediaRe
               <video src={m.displayUrl || m.url} className="h-full w-full object-cover" muted />
             ) : (m.displayUrl || m.url) ? (
               <Image src={m.displayUrl || m.url || ""} alt={m.altText || ""} fill className="object-cover" unoptimized sizes="112px" />
+            ) : null}
+            {m.mediaFile ? (
+              <a
+                href={`/api/media/${m.mediaFile}/download`}
+                className="absolute bottom-1 right-1 rounded-full bg-background/80 p-1 opacity-0 transition-opacity group-hover:opacity-100"
+                aria-label="Download"
+                title="Download"
+              >
+                <Download className="h-3 w-3" />
+              </a>
             ) : null}
             {!disabled ? (
               <button type="button" onClick={() => setMedia((arr) => arr.filter((_, j) => j !== i))} className="absolute right-1 top-1 rounded-full bg-background/80 p-1 opacity-0 transition-opacity group-hover:opacity-100" aria-label="Remove">
