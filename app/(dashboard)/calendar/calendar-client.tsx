@@ -2,29 +2,36 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardList, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { BriefStatusBadge } from "@/components/brief-status-badge";
 import { api } from "@/lib/fetcher";
 import { useUser } from "@/components/providers/user-provider";
 import {
   CONTENT_STATUS, CONTENT_STATUS_LABELS, PLATFORMS, PLATFORM_LABELS,
-  type ContentStatus, type Platform,
+  type BriefStatus, type ContentStatus, type Platform,
 } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
+// The calendar mixes two record types. `kind` discriminates them so the
+// renderer can pick the right badge component, link target and accent color.
 interface CalendarItem {
   _id: string;
+  kind: "content" | "brief";
   title: string;
-  status: ContentStatus;
-  platform: Platform;
+  status: ContentStatus | BriefStatus;
+  platform?: Platform;
+  // Content scheduling fields.
   publishDate?: string;
   scheduledAt?: string;
   publishedAt?: string;
   campaignName?: string;
+  // Brief field — used when kind === "brief".
+  deadline?: string;
   project?: { projectName?: string; brandColors?: { primary?: string } };
   isGeneralMarketing?: boolean;
 }
@@ -42,6 +49,10 @@ function sameDay(a: Date, b: Date) { return a.getFullYear() === b.getFullYear() 
 function dateKey(d: Date) { return d.toISOString().slice(0, 10); }
 
 function effectiveDate(it: CalendarItem): Date | null {
+  // Briefs are placed on their deadline; content on the best available
+  // publish-time signal (live publish wins over scheduled, scheduled wins
+  // over the editorial publish date).
+  if (it.kind === "brief") return it.deadline ? new Date(it.deadline) : null;
   const v = it.scheduledAt || it.publishedAt || it.publishDate;
   return v ? new Date(v) : null;
 }
@@ -175,11 +186,26 @@ export function CalendarClient() {
                     {dayItems.length > 0 ? <span className="text-[10px] text-muted-foreground">{dayItems.length}</span> : null}
                   </div>
                   <div className="space-y-1">
-                    {dayItems.slice(0, 3).map((it) => (
-                      <div key={it._id} className="truncate rounded px-1 py-0.5 text-[10px]" style={{ background: it.project?.brandColors?.primary ? `${it.project.brandColors.primary}22` : undefined, color: it.project?.brandColors?.primary || undefined }}>
-                        <span className="font-medium">{it.title}</span>
-                      </div>
-                    ))}
+                    {dayItems.slice(0, 3).map((it) => {
+                      const isBrief = it.kind === "brief";
+                      return (
+                        <div
+                          key={it._id}
+                          className={cn(
+                            "truncate rounded px-1 py-0.5 text-[10px]",
+                            isBrief && "border border-amber-400/40 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                          )}
+                          style={
+                            !isBrief && it.project?.brandColors?.primary
+                              ? { background: `${it.project.brandColors.primary}22`, color: it.project.brandColors.primary }
+                              : undefined
+                          }
+                        >
+                          {isBrief && <ClipboardList className="mr-0.5 inline-block h-2.5 w-2.5 shrink-0" />}
+                          <span className="font-medium">{it.title}</span>
+                        </div>
+                      );
+                    })}
                     {dayItems.length > 3 ? <div className="text-[10px] text-muted-foreground">+{dayItems.length - 3} more</div> : null}
                   </div>
                 </button>
@@ -197,18 +223,32 @@ export function CalendarClient() {
               <Button variant="ghost" size="sm" onClick={() => setSelectedDay(null)}>Close</Button>
             </div>
             {selectedItems.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No scheduled content for this day.</p>
+              <p className="text-xs text-muted-foreground">No items for this day.</p>
             ) : (
               <ul className="divide-y">
-                {selectedItems.map((it) => (
-                  <li key={it._id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                    <Link href={`/content/${it._id}`} className="min-w-0 flex-1 hover:underline">
-                      <div className="truncate text-sm font-medium">{it.title}</div>
-                      <div className="truncate text-xs text-muted-foreground">{it.project?.projectName || (it.isGeneralMarketing ? "General Marketing" : "—")} · {PLATFORM_LABELS[it.platform]}{it.campaignName ? ` · ${it.campaignName}` : ""}</div>
-                    </Link>
-                    <StatusBadge status={it.status} />
-                  </li>
-                ))}
+                {selectedItems.map((it) => {
+                  const isBrief = it.kind === "brief";
+                  const href = isBrief ? `/briefs/${it._id}` : `/content/${it._id}`;
+                  const sub = [
+                    it.project?.projectName || (it.isGeneralMarketing ? "General Marketing" : "—"),
+                    it.platform ? PLATFORM_LABELS[it.platform] : null,
+                    !isBrief && it.campaignName ? it.campaignName : null,
+                  ].filter(Boolean).join(" · ");
+                  return (
+                    <li key={it._id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                      <Link href={href} className="min-w-0 flex-1 hover:underline">
+                        <div className="flex items-center gap-1 truncate text-sm font-medium">
+                          {isBrief && <ClipboardList className="h-3.5 w-3.5 shrink-0 text-amber-500" />}
+                          <span className="truncate">{it.title}</span>
+                        </div>
+                        <div className="truncate text-xs text-muted-foreground">{sub}</div>
+                      </Link>
+                      {isBrief
+                        ? <BriefStatusBadge status={it.status as BriefStatus} />
+                        : <StatusBadge status={it.status as ContentStatus} />}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </CardContent>
