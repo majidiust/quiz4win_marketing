@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Plus, Trash2, UserPlus, Archive, CheckCircle2, RotateCcw, FileText, Repeat, PlayCircle } from "lucide-react";
+import { ArrowLeft, Copy, Loader2, Plus, Trash2, UserPlus, Archive, CheckCircle2, RotateCcw, FileText, Repeat, PlayCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PageHeader } from "@/components/page-header";
 import { BriefStatusBadge } from "@/components/brief-status-badge";
@@ -119,6 +120,11 @@ export function BriefDetailClient({ id }: { id: string }) {
   const [assignees, setAssignees] = React.useState<UserRef[]>([]);
   const [transitionState, setTransitionState] = React.useState<{ to: BriefStatus } | null>(null);
   const [note, setNote] = React.useState("");
+  // Duplicate dialog state — keeps title + new assignee local until submit.
+  const [duplicateOpen, setDuplicateOpen] = React.useState(false);
+  const [duplicateTitle, setDuplicateTitle] = React.useState("");
+  const [duplicateAssignee, setDuplicateAssignee] = React.useState<string>("__none__");
+  const [duplicating, setDuplicating] = React.useState(false);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -154,7 +160,10 @@ export function BriefDetailClient({ id }: { id: string }) {
   React.useEffect(() => { load(); }, [load]);
 
   React.useEffect(() => {
-    if (!hasPermission("briefs.assign")) return;
+    // The assignee dropdown is shared by the assign card and the duplicate
+    // dialog, so we also load it for users who can create briefs even when
+    // they don't have the `briefs.assign` permission.
+    if (!hasPermission("briefs.assign") && !hasPermission("briefs.create")) return;
     api<{ items: UserRef[] }>("/api/users?limit=200")
       .then((r) => {
         const filtered = (r.items as Array<UserRef & { role?: string }> || []).filter((u) =>
@@ -188,6 +197,33 @@ export function BriefDetailClient({ id }: { id: string }) {
     }
   }
 
+  function openDuplicateDialog() {
+    if (!doc) return;
+    setDuplicateTitle(`${doc.title} (copy)`);
+    setDuplicateAssignee(doc.assignedTo?._id || "__none__");
+    setDuplicateOpen(true);
+  }
+
+  async function submitDuplicate() {
+    if (!doc) return;
+    setDuplicating(true);
+    try {
+      const res = await api<{ id: string }>(`/api/briefs/${doc._id}/duplicate`, {
+        json: {
+          title: duplicateTitle.trim() || undefined,
+          assignedTo: duplicateAssignee === "__none__" ? null : duplicateAssignee,
+        },
+      });
+      toast.success("Brief duplicated");
+      setDuplicateOpen(false);
+      router.push(`/briefs/${res.id}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Duplicate failed");
+    } finally {
+      setDuplicating(false);
+    }
+  }
+
   async function softDelete() {
     if (!confirm("Delete this brief?")) return;
     try {
@@ -214,6 +250,10 @@ export function BriefDetailClient({ id }: { id: string }) {
   const canEdit = hasPermission("briefs.update.any") || (isOwner && isEditableStatus && hasPermission("briefs.update.own"));
   const canDelete = hasPermission("briefs.delete.any");
   const canAssign = hasPermission("briefs.assign");
+  // Duplicating only needs the create permission: the result is owned by the
+  // current user and goes through the same create path on the server.
+  // Templates are intentionally excluded — recurrence wiring isn't copied.
+  const canDuplicate = hasPermission("briefs.create") && !doc.isTemplate;
   const canComment = hasPermission("briefs.comment");
   const canCreateContent = hasPermission("content.create") && doc.status !== "archived" && !doc.isGeneralMarketing
     ? true
@@ -233,6 +273,11 @@ export function BriefDetailClient({ id }: { id: string }) {
             {canEdit ? (
               <Button variant="outline" asChild>
                 <Link href={`/briefs/${doc._id}/edit`}>Edit brief</Link>
+              </Button>
+            ) : null}
+            {canDuplicate ? (
+              <Button variant="outline" onClick={openDuplicateDialog}>
+                <Copy className="h-4 w-4" /> Duplicate
               </Button>
             ) : null}
             {canCreateContent ? (
@@ -480,6 +525,49 @@ export function BriefDetailClient({ id }: { id: string }) {
           <DialogFooter>
             <Button variant="outline" onClick={() => setTransitionState(null)}>Cancel</Button>
             <Button onClick={doTransition}>Confirm</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={duplicateOpen} onOpenChange={(o) => !duplicating && setDuplicateOpen(o)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Duplicate brief</DialogTitle>
+            <DialogDescription>
+              Creates a fresh brief with the same details. Comments, history and
+              workflow status are not copied.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Title</Label>
+              <Input
+                value={duplicateTitle}
+                onChange={(e) => setDuplicateTitle(e.target.value)}
+                placeholder="New brief title"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Assign to</Label>
+              <Select value={duplicateAssignee} onValueChange={setDuplicateAssignee}>
+                <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Unassigned</SelectItem>
+                  {assignees.map((u) => (
+                    <SelectItem key={u._id} value={u._id}>
+                      {`${u.firstName || ""} ${u.lastName || ""}`.trim() || u.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDuplicateOpen(false)} disabled={duplicating}>Cancel</Button>
+            <Button onClick={submitDuplicate} disabled={duplicating || !duplicateTitle.trim()}>
+              {duplicating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
+              Duplicate
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

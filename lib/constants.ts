@@ -261,6 +261,7 @@ export const ACTIVITY_ACTIONS = [
   "brief.deleted",
   "brief.commented",
   "brief.spawned",
+  "brief.duplicated",
   "content.created",
   "content.updated",
   "content.submitted",
