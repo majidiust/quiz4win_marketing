@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft, ArrowRight, Check, Loader2, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,26 @@ import { StepCopy } from "./wizard/step-copy";
 import { StepMedia } from "./wizard/step-media";
 import { StepTargeting } from "./wizard/step-targeting";
 import { NONE, type ProjectOption, type WizardState } from "./wizard/types";
+import type { BriefStatus, ContentType, FunnelStage, Platform } from "@/lib/constants";
+
+interface BriefPrefill {
+  _id: string;
+  title: string;
+  status: BriefStatus;
+  goal?: string;
+  description?: string;
+  platform?: Platform;
+  contentType?: ContentType;
+  funnelStage?: FunnelStage;
+  language?: string;
+  targetCountry?: string;
+  targetAudience?: string;
+  suggestedHashtags?: string[];
+  suggestedCTA?: string;
+  deadline?: string;
+  isGeneralMarketing?: boolean;
+  project?: { _id: string };
+}
 
 const STEPS = [
   { key: "basics", label: "Basics", description: "Title, project, format" },
@@ -26,6 +46,8 @@ const STEPS = [
 
 export function NewContentForm() {
   const router = useRouter();
+  const sp = useSearchParams();
+  const briefId = sp.get("briefId") || "";
   const { user } = useUser();
   // Only org-level roles may file content under General Marketing.
   const canPostGeneral = !!user && ["super_admin", "admin", "project_manager"].includes(user.role);
@@ -33,6 +55,7 @@ export function NewContentForm() {
   const [projectsLoading, setProjectsLoading] = React.useState(true);
   const [submitting, setSubmitting] = React.useState(false);
   const [stepIndex, setStepIndex] = React.useState(0);
+  const [brief, setBrief] = React.useState<BriefPrefill | null>(null);
 
   const [state, setState] = React.useState<WizardState>({
     title: "",
@@ -63,6 +86,33 @@ export function NewContentForm() {
       .catch(() => setProjects([]))
       .finally(() => setProjectsLoading(false));
   }, []);
+
+  // When started from /briefs/[id], pre-fill the wizard with the brief's
+  // metadata so the producer doesn't have to retype targeting and platform.
+  React.useEffect(() => {
+    if (!briefId) return;
+    api<{ brief: BriefPrefill }>(`/api/briefs/${briefId}`)
+      .then(({ brief: b }) => {
+        setBrief(b);
+        setState((s) => ({
+          ...s,
+          title: s.title || b.title,
+          description: s.description || b.description || "",
+          contentType: (b.contentType as WizardState["contentType"]) || s.contentType,
+          platform: (b.platform as WizardState["platform"]) || s.platform,
+          funnelStage: (b.funnelStage as WizardState["funnelStage"]) || s.funnelStage,
+          language: s.language || b.language || "",
+          targetCountry: s.targetCountry || b.targetCountry || "",
+          targetAudience: s.targetAudience || b.targetAudience || "",
+          cta: s.cta || b.suggestedCTA || "",
+          hashtags: s.hashtags || (b.suggestedHashtags?.length ? b.suggestedHashtags.map((h) => `#${h}`).join(" ") : ""),
+          isGeneralMarketing: !!b.isGeneralMarketing,
+          project: b.project?._id || s.project,
+          publishDate: s.publishDate || (b.deadline ? new Date(b.deadline).toISOString().slice(0, 16) : ""),
+        }));
+      })
+      .catch(() => toast.error("Could not load brief — starting blank"));
+  }, [briefId]);
 
   const set = React.useCallback(<K extends keyof WizardState>(key: K, value: WizardState[K]) => {
     setState((s) => ({ ...s, [key]: value }));
@@ -121,6 +171,7 @@ export function NewContentForm() {
         publishDate: state.publishDate ? new Date(state.publishDate).toISOString() : undefined,
         isGeneralMarketing: state.isGeneralMarketing,
         project: state.isGeneralMarketing ? undefined : state.project === NONE ? undefined : state.project,
+        brief: briefId || undefined,
         mediaFiles: state.media.length
           ? state.media.map((m, i) => ({
               mediaFile: m.mediaFile,
@@ -155,6 +206,16 @@ export function NewContentForm() {
           </Button>
         }
       />
+
+      {brief ? (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="flex flex-wrap items-center gap-3 p-3 text-sm">
+            <ClipboardList className="h-4 w-4 text-primary" />
+            <span className="text-muted-foreground">Creating content for brief</span>
+            <Link href={`/briefs/${brief._id}`} className="font-medium hover:underline">{brief.title}</Link>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Stepper current={stepIndex} onJump={(i) => i < stepIndex && setStepIndex(i)} />
 

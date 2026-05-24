@@ -5,6 +5,8 @@ export const USER_ROLES = [
   "admin",
   "project_manager",
   "reviewer",
+  "content_producer",
+  "publisher",
   "marketing_user",
 ] as const;
 export type UserRole = (typeof USER_ROLES)[number];
@@ -14,6 +16,8 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
   admin: "Admin",
   project_manager: "Project Manager",
   reviewer: "Reviewer",
+  content_producer: "Content Producer",
+  publisher: "Publisher",
   marketing_user: "Digital Marketing User",
 };
 
@@ -188,6 +192,52 @@ export const CONTENT_TYPE_MEDIA_KINDS: Record<ContentType, MediaKind[]> = {
   email_newsletter: ["image"],
 };
 
+// Brief lifecycle. A brief is the PM-authored package of intent that one or
+// more Content documents are produced against.
+export const BRIEF_STATUS = [
+  "created",
+  "assigned",
+  "in_progress",
+  "completed",
+  "archived",
+  "template",
+] as const;
+export type BriefStatus = (typeof BRIEF_STATUS)[number];
+
+export const BRIEF_STATUS_LABELS: Record<BriefStatus, string> = {
+  created: "Created",
+  assigned: "Assigned",
+  in_progress: "In Progress",
+  completed: "Completed",
+  archived: "Archived",
+  template: "Template",
+};
+
+// Recurrence vocabulary for repeating brief templates. A template never
+// transitions through the regular workflow — it just spawns child briefs
+// at each occurrence.
+export const RECURRENCE_FREQ = ["daily", "weekly", "monthly"] as const;
+export type RecurrenceFreq = (typeof RECURRENCE_FREQ)[number];
+
+export const RECURRENCE_FREQ_LABELS: Record<RecurrenceFreq, string> = {
+  daily: "Daily",
+  weekly: "Weekly",
+  monthly: "Monthly",
+};
+
+export const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+export type Weekday = (typeof WEEKDAYS)[number];
+
+export const WEEKDAY_LABELS: Record<Weekday, string> = {
+  sun: "Sun",
+  mon: "Mon",
+  tue: "Tue",
+  wed: "Wed",
+  thu: "Thu",
+  fri: "Fri",
+  sat: "Sat",
+};
+
 export const ACTIVITY_ACTIONS = [
   "user.login",
   "user.login_failed",
@@ -202,6 +252,15 @@ export const ACTIVITY_ACTIONS = [
   "project.created",
   "project.updated",
   "project.deleted",
+  "brief.created",
+  "brief.updated",
+  "brief.assigned",
+  "brief.in_progress",
+  "brief.completed",
+  "brief.archived",
+  "brief.deleted",
+  "brief.commented",
+  "brief.spawned",
   "content.created",
   "content.updated",
   "content.submitted",
@@ -213,6 +272,7 @@ export const ACTIVITY_ACTIONS = [
   "content.deleted",
   "content.restored",
   "content.archived",
+  "content.commented",
   "media.uploaded",
   "media.deleted",
   "settings.updated",

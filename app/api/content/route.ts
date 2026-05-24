@@ -3,9 +3,12 @@ import type { NextRequest } from "next/server";
 import { requireAuth, requirePermission } from "@/lib/auth/guard";
 import { connectDB } from "@/lib/db";
 import { Content } from "@/models/Content";
+import { ContentBrief, type ContentBriefDoc } from "@/models/ContentBrief";
+import type { HydratedDocument } from "mongoose";
 import { Project } from "@/models/Project";
 import { badRequest, forbidden, ok, parsePagination, serverError } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
+import { canReadBrief } from "@/lib/brief-policy";
 import {
   CONTENT_STATUS,
   CONTENT_TYPES,
@@ -120,6 +123,7 @@ const CreateBody = z.object({
   internalReferenceId: z.string().optional(),
   project: z.string().optional(),
   isGeneralMarketing: z.boolean().optional(),
+  brief: z.string().optional(),
   contentType: z.enum(CONTENT_TYPES),
   platform: z.enum(PLATFORMS),
   status: z.enum(CONTENT_STATUS).optional(),
@@ -184,6 +188,27 @@ export async function POST(req: Request) {
       projectId = String(project._id);
     }
 
+    // If a brief is provided, verify the caller can see it. We then snap the
+    // brief out of "created"/"assigned" into "in_progress" once the first
+    // child content lands.
+    let briefDoc: HydratedDocument<ContentBriefDoc> | null = null;
+    if (body.data.brief) {
+      briefDoc = await ContentBrief.findById(body.data.brief);
+      if (!briefDoc) return badRequest("Brief not found");
+      if (
+        !canReadBrief(auth.ctx.role, auth.ctx.user, {
+          status: briefDoc.status,
+          createdBy: briefDoc.createdBy,
+          assignedTo: briefDoc.assignedTo,
+          project: briefDoc.project,
+          isGeneralMarketing: briefDoc.isGeneralMarketing,
+          isDeleted: briefDoc.isDeleted,
+        })
+      ) {
+        return forbidden("You do not have access to this brief");
+      }
+    }
+
     const initialStatus: ContentStatus = body.data.status || "draft";
     const slug = slugify(body.data.title);
 
@@ -191,6 +216,7 @@ export async function POST(req: Request) {
       ...body.data,
       project: projectId,
       isGeneralMarketing: wantsGeneral,
+      brief: briefDoc?._id,
       slug,
       publishDate: body.data.publishDate ? new Date(body.data.publishDate) : undefined,
       status: initialStatus,
@@ -207,6 +233,28 @@ export async function POST(req: Request) {
       project: content.project ?? undefined,
       message: `Created content "${content.title}"`,
     });
+    if (briefDoc && (briefDoc.status === "created" || briefDoc.status === "assigned")) {
+      const now = new Date();
+      briefDoc.status = "in_progress";
+      briefDoc.statusChangedAt = now;
+      briefDoc.activityLog = briefDoc.activityLog || [];
+      briefDoc.activityLog.push({
+        at: now,
+        by: auth.ctx.user._id,
+        action: "auto:content_created",
+        toStatus: "in_progress",
+      });
+      await briefDoc.save();
+      await logActivity({
+        action: "brief.in_progress",
+        actor: auth.ctx.userId,
+        actorEmail: auth.ctx.email,
+        targetType: "ContentBrief",
+        targetId: briefDoc._id,
+        project: briefDoc.project ?? undefined,
+        message: `Auto-advanced to in_progress (content ${String(content._id)})`,
+      });
+    }
     return ok({ id: String(content._id) }, 201);
   } catch (err) {
     return serverError(err);

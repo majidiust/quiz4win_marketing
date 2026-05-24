@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Save, Send, CheckCircle2, XCircle, CalendarClock, Trash2, Archive, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Send, CheckCircle2, XCircle, CalendarClock, Trash2, Archive, RotateCcw, Sparkles, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +23,9 @@ import {
 } from "@/lib/constants";
 import { ContentDetailsForm, type EditableContent } from "./content-details-form";
 import { ContentHistory } from "./content-history";
+import { CommentsSection } from "@/components/comments-section";
+import { BriefStatusBadge } from "@/components/brief-status-badge";
+import type { BriefStatus } from "@/lib/constants";
 
 interface ContentDoc extends EditableContent {
   _id: string;
@@ -40,6 +43,7 @@ interface ContentDoc extends EditableContent {
   reviewerComment?: string;
   externalPublishError?: string;
   project?: { _id: string; projectName: string; slug?: string; isGeneralMarketing?: boolean };
+  brief?: { _id: string; title: string; status: BriefStatus } | string;
   createdBy?: { _id: string; firstName?: string; lastName?: string; email?: string };
   approvedBy?: { firstName?: string; lastName?: string };
   rejectedBy?: { firstName?: string; lastName?: string };
@@ -246,14 +250,35 @@ export function ContentEditorClient({ id }: { id: string }) {
         </Card>
       ) : null}
 
+      {doc.brief && typeof doc.brief === "object" ? (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="flex flex-wrap items-center gap-3 p-3 text-sm">
+            <ClipboardList className="h-4 w-4 text-primary" />
+            <span className="text-muted-foreground">From brief</span>
+            <Link href={`/briefs/${doc.brief._id}`} className="font-medium hover:underline">
+              {doc.brief.title}
+            </Link>
+            <BriefStatusBadge status={doc.brief.status} />
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Tabs defaultValue="details">
         <TabsList>
           <TabsTrigger value="details">Details</TabsTrigger>
+          <TabsTrigger value="comments">Comments</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
           <TabsTrigger value="meta">Meta</TabsTrigger>
         </TabsList>
         <TabsContent value="details" className="space-y-4">
           <ContentDetailsForm doc={doc} editable={isEditable} ref={formRef} />
+        </TabsContent>
+        <TabsContent value="comments">
+          <CommentsSection
+            endpoint={`/api/content/${id}/comments`}
+            canComment={hasPermission("content.comment")}
+            emptyHint="No comments yet — reviewers and producers can discuss here."
+          />
         </TabsContent>
         <TabsContent value="history">
           <ContentHistory entries={doc.activityLog || []} />

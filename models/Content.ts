@@ -41,6 +41,17 @@ const ActivityEntrySchema = new Schema(
   { _id: false }
 );
 
+// Free-form discussion thread between PM, producer, reviewer and publisher.
+// Distinct from activityLog, which only records status transitions.
+const CommentSchema = new Schema(
+  {
+    at: { type: Date, default: Date.now },
+    by: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    body: { type: String, required: true, trim: true },
+  },
+  { _id: true }
+);
+
 const AnalyticsSchema = new Schema(
   {
     impressions: { type: Number, default: 0 },
@@ -68,6 +79,9 @@ const ContentSchema = new Schema(
     // Project relations
     project: { type: Schema.Types.ObjectId, ref: "Project", index: true },
     isGeneralMarketing: { type: Boolean, default: false, index: true },
+
+    // Optional parent brief that this content was produced against.
+    brief: { type: Schema.Types.ObjectId, ref: "ContentBrief", index: true },
 
     // User relations
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
@@ -150,6 +164,7 @@ const ContentSchema = new Schema(
     version: { type: Number, default: 1 },
     editHistory: { type: [EditHistoryEntrySchema], default: [] },
     activityLog: { type: [ActivityEntrySchema], default: [] },
+    comments: { type: [CommentSchema], default: [] },
 
     // Soft delete
     isDeleted: { type: Boolean, default: false, index: true },

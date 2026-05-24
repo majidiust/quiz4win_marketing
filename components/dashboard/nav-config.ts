@@ -7,6 +7,7 @@ import {
   Activity,
   Settings,
   Sparkles,
+  ClipboardList,
   type LucideIcon,
 } from "lucide-react";
 import type { Permission } from "@/lib/rbac";
@@ -34,7 +35,8 @@ export const navSections: NavSection[] = [
   {
     label: "Content",
     items: [
-      { href: "/content", label: "Content Library", icon: FileText, match: (p) => p.startsWith("/content") },
+      { href: "/briefs", label: "Briefs", icon: ClipboardList, permission: "briefs.read.own", match: (p) => p.startsWith("/briefs") },
+      { href: "/content", label: "Content Library", icon: FileText, match: (p) => p === "/content" || p.startsWith("/content/") },
       { href: "/calendar", label: "Calendar", icon: CalendarDays, permission: "calendar.read" },
       { href: "/content/new", label: "Create Content", icon: Sparkles, permission: "content.create" },
     ],

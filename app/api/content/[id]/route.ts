@@ -49,6 +49,7 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/api/content/[id
     await connectDB();
     const c = await Content.findById(id)
       .populate("project", "projectName slug logo brandColors isGeneralMarketing")
+      .populate("brief", "title status")
       .populate("createdBy", "firstName lastName email profileImage")
       .populate("assignedTo", "firstName lastName email profileImage")
       .populate("reviewedBy", "firstName lastName email")

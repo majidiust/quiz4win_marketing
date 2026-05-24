@@ -33,6 +33,11 @@ const TEXT_INDEXES = [
     name: "project_text_index",
     fields: { projectName: "text", description: "text" },
   },
+  {
+    collection: "quiz4win_marketing_content_briefs",
+    name: "content_brief_text_index",
+    fields: { title: "text", description: "text", goal: "text" },
+  },
 ];
 
 const client = new MongoClient(uri);

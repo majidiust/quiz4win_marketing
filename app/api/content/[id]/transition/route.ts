@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth/guard";
 import { connectDB } from "@/lib/db";
 import { Content } from "@/models/Content";
+import { ContentBrief } from "@/models/ContentBrief";
 import { badRequest, forbidden, notFound, ok, serverError } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
 import { CONTENT_STATUS, type ActivityAction } from "@/lib/constants";
@@ -137,6 +138,43 @@ export async function POST(req: NextRequest, ctx: RouteContext<"/api/content/[id
       project: c.project ?? undefined,
       message: `${fromStatus} → ${toStatus}${reason ? ` (${reason})` : ""}`,
     });
+
+    // If the content has a parent brief and just got published, check whether
+    // every other live child of that brief is also published; if so, flip the
+    // brief to "completed".
+    if (toStatus === "published" && c.brief) {
+      const remaining = await Content.countDocuments({
+        brief: c.brief,
+        _id: { $ne: c._id },
+        isDeleted: { $ne: true },
+        status: { $ne: "published" },
+      });
+      if (remaining === 0) {
+        const brief = await ContentBrief.findById(c.brief);
+        if (brief && brief.status !== "completed" && brief.status !== "archived") {
+          brief.status = "completed";
+          brief.statusChangedAt = now;
+          brief.completedAt = now;
+          brief.activityLog = brief.activityLog || [];
+          brief.activityLog.push({
+            at: now,
+            by: auth.ctx.user._id,
+            action: "auto:all_children_published",
+            toStatus: "completed",
+          });
+          await brief.save();
+          await logActivity({
+            action: "brief.completed",
+            actor: auth.ctx.userId,
+            actorEmail: auth.ctx.email,
+            targetType: "ContentBrief",
+            targetId: brief._id,
+            project: brief.project ?? undefined,
+            message: "Auto-completed (all child content published)",
+          });
+        }
+      }
+    }
     return ok({ success: true, status: c.status });
   } catch (err) {
     return serverError(err);
