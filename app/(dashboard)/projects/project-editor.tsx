@@ -37,6 +37,9 @@ interface ProjectDoc {
 export function ProjectEditor({ mode, id }: { mode: "create" | "edit"; id?: string }) {
   const router = useRouter();
   const { hasPermission } = useUser();
+  // Only roles holding projects.create / projects.update may submit the form.
+  // For other roles the page renders as a read-only inspector.
+  const canMutate = hasPermission(mode === "create" ? "projects.create" : "projects.update");
   const [loading, setLoading] = React.useState(mode === "edit");
   const [saving, setSaving] = React.useState(false);
   const [form, setForm] = React.useState({
@@ -170,14 +173,22 @@ export function ProjectEditor({ mode, id }: { mode: "create" | "edit"; id?: stri
                 <Trash2 className="h-4 w-4" /> Deactivate
               </Button>
             ) : null}
-            <Button type="submit" disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {saving ? "Saving…" : "Save"}
-            </Button>
+            {canMutate ? (
+              <Button type="submit" disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {saving ? "Saving…" : "Save"}
+              </Button>
+            ) : null}
           </>
         }
       />
+      {mode === "edit" && !canMutate ? (
+        <p className="text-sm text-muted-foreground">
+          Read-only view. Only super admins can change project settings.
+        </p>
+      ) : null}
 
+      <fieldset disabled={!canMutate} className="contents">
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader className="pb-3"><CardTitle>Basics</CardTitle></CardHeader>
@@ -238,6 +249,7 @@ export function ProjectEditor({ mode, id }: { mode: "create" | "edit"; id?: stri
           </CardContent>
         </Card>
       </div>
+      </fieldset>
     </form>
   );
 }

@@ -53,7 +53,9 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   ],
   admin: [
     "users.read","users.create","users.update","users.disable",
-    "projects.read","projects.create","projects.update",
+    // Project create/update/delete intentionally limited to super_admin so
+    // brand/workspace configuration can only be changed by a single owner.
+    "projects.read",
     "briefs.read.any","briefs.read.own","briefs.create","briefs.update.own","briefs.update.any",
     "briefs.assign","briefs.delete.any","briefs.archive","briefs.comment",
     "content.read.any","content.read.own","content.create","content.update.own","content.update.any",
@@ -63,7 +65,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   ],
   project_manager: [
     "users.read",
-    "projects.read","projects.update",
+    "projects.read",
     "briefs.read.any","briefs.read.own","briefs.create","briefs.update.own","briefs.update.any",
     "briefs.assign","briefs.archive","briefs.comment",
     "content.read.any","content.read.own","content.create","content.update.own","content.update.any",
