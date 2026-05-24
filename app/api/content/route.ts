@@ -9,6 +9,7 @@ import { logActivity } from "@/lib/activity";
 import {
   CONTENT_STATUS,
   CONTENT_TYPES,
+  FUNNEL_STAGES,
   PLATFORMS,
   PRIORITIES,
   type ContentStatus,
@@ -123,6 +124,7 @@ const CreateBody = z.object({
   platform: z.enum(PLATFORMS),
   status: z.enum(CONTENT_STATUS).optional(),
   priority: z.enum(PRIORITIES).optional(),
+  funnelStage: z.enum(FUNNEL_STAGES).optional(),
   caption: z.string().optional(),
   shortCaption: z.string().optional(),
   hashtags: z.array(z.string()).optional(),

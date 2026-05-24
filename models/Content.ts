@@ -2,6 +2,7 @@ import mongoose, { Schema, type InferSchemaType, type Model } from "mongoose";
 import {
   CONTENT_STATUS,
   CONTENT_TYPES,
+  FUNNEL_STAGES,
   PLATFORMS,
   PRIORITIES,
 } from "@/lib/constants";
@@ -81,6 +82,7 @@ const ContentSchema = new Schema(
     contentType: { type: String, enum: CONTENT_TYPES, required: true, index: true },
     platform: { type: String, enum: PLATFORMS, required: true, index: true },
     priority: { type: String, enum: PRIORITIES, default: "normal" },
+    funnelStage: { type: String, enum: FUNNEL_STAGES, index: true },
 
     // Content body
     caption: { type: String, default: "" },

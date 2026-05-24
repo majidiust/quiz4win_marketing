@@ -119,6 +119,75 @@ export const PLATFORM_LABELS: Record<Platform, string> = {
 export const PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 export type Priority = (typeof PRIORITIES)[number];
 
+// Marketing funnel stages used to tag content. Determines which sample copy
+// patterns and which media types the wizard suggests.
+export const FUNNEL_STAGES = [
+  "awareness",
+  "consideration",
+  "conversion",
+  "retention",
+  "advocacy",
+] as const;
+export type FunnelStage = (typeof FUNNEL_STAGES)[number];
+
+export const FUNNEL_STAGE_LABELS: Record<FunnelStage, string> = {
+  awareness: "Awareness",
+  consideration: "Consideration",
+  conversion: "Conversion",
+  retention: "Retention",
+  advocacy: "Advocacy",
+};
+
+export const FUNNEL_STAGE_DESCRIPTIONS: Record<FunnelStage, string> = {
+  awareness: "Reach new audiences and introduce the brand.",
+  consideration: "Educate prospects and demonstrate value.",
+  conversion: "Drive a specific action — sign-up, purchase, install.",
+  retention: "Engage and re-activate existing users.",
+  advocacy: "Turn happy customers into promoters and referrers.",
+};
+
+// Logical media buckets used by the upload wizard. Concrete MIME types per
+// bucket live in MEDIA_KIND_MIME_TYPES below.
+export const MEDIA_KINDS = ["image", "video", "audio", "document"] as const;
+export type MediaKind = (typeof MEDIA_KINDS)[number];
+
+export const MEDIA_KIND_LABELS: Record<MediaKind, string> = {
+  image: "Image",
+  video: "Video",
+  audio: "Audio",
+  document: "Document",
+};
+
+// Accept attribute fragments per media kind — used to drive the file picker
+// and validate dropped files client-side.
+export const MEDIA_KIND_ACCEPT: Record<MediaKind, string> = {
+  image: "image/*",
+  video: "video/*",
+  audio: "audio/*",
+  document:
+    "application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/csv",
+};
+
+// Per content type, which media kinds make sense. Empty array means the
+// format is text-only (no media upload).
+export const CONTENT_TYPE_MEDIA_KINDS: Record<ContentType, MediaKind[]> = {
+  instagram_post: ["image", "video"],
+  instagram_story: ["image", "video"],
+  instagram_reel: ["video"],
+  instagram_carousel: ["image"],
+  tiktok_video: ["video"],
+  facebook_post: ["image", "video"],
+  facebook_story: ["image", "video"],
+  youtube_shorts: ["video"],
+  linkedin_post: ["image", "video", "document"],
+  twitter_post: ["image", "video"],
+  blog_post: ["image"],
+  banner: ["image"],
+  campaign_asset: ["image", "video", "audio", "document"],
+  push_notification: ["image"],
+  email_newsletter: ["image"],
+};
+
 export const ACTIVITY_ACTIONS = [
   "user.login",
   "user.login_failed",

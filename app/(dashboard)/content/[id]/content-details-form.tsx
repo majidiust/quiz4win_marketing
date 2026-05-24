@@ -8,13 +8,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox, type ComboboxItem } from "@/components/ui/combobox";
 import { api } from "@/lib/fetcher";
 import {
   CONTENT_TYPES, CONTENT_TYPE_LABELS, PLATFORMS, PLATFORM_LABELS, PRIORITIES,
-  type ContentType, type Platform, type Priority,
+  FUNNEL_STAGES, FUNNEL_STAGE_LABELS,
+  type ContentType, type FunnelStage, type Platform, type Priority,
 } from "@/lib/constants";
+import { COUNTRIES, LANGUAGES } from "@/lib/i18n-data";
 
 export interface MediaRef {
   mediaFile?: string;
@@ -32,6 +34,7 @@ export interface EditableContent {
   contentType?: ContentType;
   platform?: Platform;
   priority?: Priority;
+  funnelStage?: FunnelStage;
   caption?: string;
   shortCaption?: string;
   hashtags?: string[];
@@ -85,6 +88,7 @@ export const ContentDetailsForm = React.forwardRef<{ getValues: () => Partial<Ed
       contentType: (doc.contentType || "instagram_post") as ContentType,
       platform: (doc.platform || "instagram") as Platform,
       priority: (doc.priority || "normal") as Priority,
+      funnelStage: (doc.funnelStage || "") as FunnelStage | "",
       caption: doc.caption || "",
       shortCaption: doc.shortCaption || "",
       hashtags: (doc.hashtags || []).join(" "),
@@ -120,6 +124,26 @@ export const ContentDetailsForm = React.forwardRef<{ getValues: () => Partial<Ed
       setForm((f) => ({ ...f, [key]: value }));
     }
 
+    const countryItems: ComboboxItem[] = React.useMemo(
+      () => COUNTRIES.map((c) => ({
+        value: c.code,
+        label: c.name,
+        hint: c.code,
+        keywords: c.code,
+        leading: <span aria-hidden className="text-base leading-none">{c.flag}</span>,
+      })),
+      [],
+    );
+    const languageItems: ComboboxItem[] = React.useMemo(
+      () => LANGUAGES.map((l) => ({
+        value: l.code,
+        label: l.name,
+        hint: l.code.toUpperCase(),
+        keywords: `${l.code} ${l.nativeName ?? ""}`,
+      })),
+      [],
+    );
+
     React.useImperativeHandle(ref, () => ({
       getValues: () => ({
         title: form.title,
@@ -128,6 +152,7 @@ export const ContentDetailsForm = React.forwardRef<{ getValues: () => Partial<Ed
         contentType: form.contentType,
         platform: form.platform,
         priority: form.priority,
+        funnelStage: form.funnelStage || undefined,
         caption: form.caption,
         shortCaption: form.shortCaption,
         hashtags: form.hashtags ? form.hashtags.split(/[,\s]+/).map((s) => s.replace(/^#/, "")).filter(Boolean) : [],
@@ -202,6 +227,16 @@ export const ContentDetailsForm = React.forwardRef<{ getValues: () => Partial<Ed
                 <SelectContent>{PRIORITIES.map((p) => <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>)}</SelectContent>
               </Select>
             </Field>
+            <Field label="Funnel stage">
+              <Select
+                value={form.funnelStage || ""}
+                onValueChange={(v) => set("funnelStage", v as FunnelStage)}
+                disabled={disabled}
+              >
+                <SelectTrigger><SelectValue placeholder="Pick a stage" /></SelectTrigger>
+                <SelectContent>{FUNNEL_STAGES.map((s) => <SelectItem key={s} value={s}>{FUNNEL_STAGE_LABELS[s]}</SelectItem>)}</SelectContent>
+              </Select>
+            </Field>
             <Field label="Content format"><Input disabled={disabled} value={form.contentFormat} onChange={(e) => set("contentFormat", e.target.value)} placeholder="1080x1080, 9:16…" /></Field>
             <Field label="Aspect ratio"><Input disabled={disabled} value={form.aspectRatio} onChange={(e) => set("aspectRatio", e.target.value)} placeholder="1:1, 9:16, 16:9" /></Field>
             <Field label="Internal reference"><Input disabled={disabled} value={form.internalReferenceId} onChange={(e) => set("internalReferenceId", e.target.value)} /></Field>
@@ -213,8 +248,26 @@ export const ContentDetailsForm = React.forwardRef<{ getValues: () => Partial<Ed
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <Field label="Planned publish date"><Input disabled={disabled} type="datetime-local" value={form.publishDate} onChange={(e) => set("publishDate", e.target.value)} /></Field>
             <Field label="Timezone"><Input disabled={disabled} value={form.timezone} onChange={(e) => set("timezone", e.target.value)} placeholder="UTC, America/Sao_Paulo…" /></Field>
-            <Field label="Language"><Input disabled={disabled} value={form.language} onChange={(e) => set("language", e.target.value)} /></Field>
-            <Field label="Country"><Input disabled={disabled} value={form.targetCountry} onChange={(e) => set("targetCountry", e.target.value)} /></Field>
+            <Field label="Language">
+              <Combobox
+                value={form.language}
+                onChange={(v) => set("language", v)}
+                items={languageItems}
+                placeholder="Select language"
+                searchPlaceholder="Search language…"
+                disabled={disabled}
+              />
+            </Field>
+            <Field label="Country">
+              <Combobox
+                value={form.targetCountry}
+                onChange={(v) => set("targetCountry", v)}
+                items={countryItems}
+                placeholder="Select country"
+                searchPlaceholder="Search country…"
+                disabled={disabled}
+              />
+            </Field>
             <Field label="Audience"><Input disabled={disabled} value={form.targetAudience} onChange={(e) => set("targetAudience", e.target.value)} /></Field>
             <Field label="Location tag"><Input disabled={disabled} value={form.locationTag} onChange={(e) => set("locationTag", e.target.value)} /></Field>
             <Field label="Campaign"><Input disabled={disabled} value={form.campaignName} onChange={(e) => set("campaignName", e.target.value)} /></Field>

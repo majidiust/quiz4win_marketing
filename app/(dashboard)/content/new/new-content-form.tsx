@@ -2,30 +2,27 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/fetcher";
 import { useUser } from "@/components/providers/user-provider";
-import { CONTENT_TYPES, CONTENT_TYPE_LABELS, PLATFORMS, PLATFORM_LABELS, PRIORITIES, type ContentType, type Platform, type Priority } from "@/lib/constants";
+import { cn } from "@/lib/utils";
+import { StepBasics } from "./wizard/step-basics";
+import { StepCopy } from "./wizard/step-copy";
+import { StepMedia } from "./wizard/step-media";
+import { StepTargeting } from "./wizard/step-targeting";
+import { NONE, type ProjectOption, type WizardState } from "./wizard/types";
 
-interface ProjectOption {
-  _id: string;
-  projectName: string;
-  isGeneralMarketing?: boolean;
-  defaultHashtags?: string[];
-  defaultCTA?: string;
-}
-
-const NONE = "__none__";
+const STEPS = [
+  { key: "basics", label: "Basics", description: "Title, project, format" },
+  { key: "copy", label: "Copy", description: "Caption, hashtags, CTA" },
+  { key: "media", label: "Media", description: "Upload assets" },
+  { key: "targeting", label: "Targeting", description: "Audience and schedule" },
+] as const;
 
 export function NewContentForm() {
   const router = useRouter();
@@ -35,23 +32,29 @@ export function NewContentForm() {
   const [projects, setProjects] = React.useState<ProjectOption[]>([]);
   const [projectsLoading, setProjectsLoading] = React.useState(true);
   const [submitting, setSubmitting] = React.useState(false);
+  const [stepIndex, setStepIndex] = React.useState(0);
 
-  const [form, setForm] = React.useState({
+  const [state, setState] = React.useState<WizardState>({
     title: "",
     description: "",
     project: NONE,
     isGeneralMarketing: false,
-    contentType: "instagram_post" as ContentType,
-    platform: "instagram" as Platform,
-    priority: "normal" as Priority,
+    contentType: "instagram_post",
+    platform: "instagram",
+    priority: "normal",
+    funnelStage: "",
     caption: "",
+    shortCaption: "",
     hashtags: "",
     cta: "",
     targetUrl: "",
     language: "",
     targetCountry: "",
+    targetAudience: "",
     campaignName: "",
+    campaignGoal: "",
     publishDate: "",
+    media: [],
   });
 
   React.useEffect(() => {
@@ -61,51 +64,73 @@ export function NewContentForm() {
       .finally(() => setProjectsLoading(false));
   }, []);
 
-  // Projects the user can actually post into (excludes the General Marketing
-  // project; that has its own dedicated toggle).
-  const selectableProjects = React.useMemo(
-    () => projects.filter((p) => !p.isGeneralMarketing),
-    [projects],
-  );
+  const set = React.useCallback(<K extends keyof WizardState>(key: K, value: WizardState[K]) => {
+    setState((s) => ({ ...s, [key]: value }));
+  }, []);
 
-  function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
-    setForm((f) => ({ ...f, [key]: value }));
+  // Per-step validation gating the Next / Submit buttons. Keeps the user
+  // honest without showing destructive toasts on every keystroke.
+  function validateStep(idx: number): string | null {
+    if (idx === 0) {
+      if (!state.title.trim()) return "Title is required";
+      if (state.project === NONE && !state.isGeneralMarketing) {
+        return canPostGeneral ? "Select a project or mark as General Marketing" : "Select a project";
+      }
+      if (state.isGeneralMarketing && !canPostGeneral) return "You are not allowed to create General Marketing content";
+      if (!state.funnelStage) return "Pick a funnel stage";
+    }
+    return null;
   }
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.title.trim()) {
-      toast.error("Title is required");
-      return;
-    }
-    if (form.project === NONE && !form.isGeneralMarketing) {
-      toast.error(canPostGeneral
-        ? "Select a project or mark as General Marketing"
-        : "Select a project");
-      return;
-    }
-    if (form.isGeneralMarketing && !canPostGeneral) {
-      toast.error("You are not allowed to create General Marketing content");
-      return;
+  function next() {
+    const err = validateStep(stepIndex);
+    if (err) { toast.error(err); return; }
+    setStepIndex((i) => Math.min(STEPS.length - 1, i + 1));
+  }
+
+  function prev() {
+    setStepIndex((i) => Math.max(0, i - 1));
+  }
+
+  async function onSubmit() {
+    for (let i = 0; i < STEPS.length; i++) {
+      const err = validateStep(i);
+      if (err) { setStepIndex(i); toast.error(err); return; }
     }
     setSubmitting(true);
     try {
       const payload: Record<string, unknown> = {
-        title: form.title.trim(),
-        description: form.description.trim() || undefined,
-        contentType: form.contentType,
-        platform: form.platform,
-        priority: form.priority,
-        caption: form.caption || undefined,
-        hashtags: form.hashtags ? form.hashtags.split(/[,\s]+/).map((s) => s.replace(/^#/, "")).filter(Boolean) : undefined,
-        cta: form.cta || undefined,
-        targetUrl: form.targetUrl || undefined,
-        language: form.language || undefined,
-        targetCountry: form.targetCountry || undefined,
-        campaignName: form.campaignName || undefined,
-        publishDate: form.publishDate ? new Date(form.publishDate).toISOString() : undefined,
-        isGeneralMarketing: form.isGeneralMarketing,
-        project: form.isGeneralMarketing ? undefined : form.project === NONE ? undefined : form.project,
+        title: state.title.trim(),
+        description: state.description.trim() || undefined,
+        contentType: state.contentType,
+        platform: state.platform,
+        priority: state.priority,
+        funnelStage: state.funnelStage || undefined,
+        caption: state.caption || undefined,
+        shortCaption: state.shortCaption || undefined,
+        hashtags: state.hashtags
+          ? state.hashtags.split(/[,\s]+/).map((s) => s.replace(/^#/, "")).filter(Boolean)
+          : undefined,
+        cta: state.cta || undefined,
+        targetUrl: state.targetUrl || undefined,
+        language: state.language || undefined,
+        targetCountry: state.targetCountry || undefined,
+        targetAudience: state.targetAudience || undefined,
+        campaignName: state.campaignName || undefined,
+        campaignGoal: state.campaignGoal || undefined,
+        publishDate: state.publishDate ? new Date(state.publishDate).toISOString() : undefined,
+        isGeneralMarketing: state.isGeneralMarketing,
+        project: state.isGeneralMarketing ? undefined : state.project === NONE ? undefined : state.project,
+        mediaFiles: state.media.length
+          ? state.media.map((m, i) => ({
+              mediaFile: m.mediaFile,
+              url: m.url,
+              thumbnailUrl: m.thumbnailUrl || undefined,
+              mimeType: m.mimeType,
+              altText: m.altText || undefined,
+              order: i,
+            }))
+          : undefined,
       };
       const res = await api<{ id: string }>("/api/content", { json: payload });
       toast.success("Content draft created");
@@ -117,129 +142,89 @@ export function NewContentForm() {
     }
   }
 
+  const isLast = stepIndex === STEPS.length - 1;
+
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
+    <div className="space-y-5">
       <PageHeader
         title="New Content"
-        description="Create a content draft. You can fill in additional details after creation."
+        description="Walk through the four steps to create a ready-to-review draft."
         actions={
-          <>
-            <Button type="button" variant="outline" asChild>
-              <Link href="/content"><ArrowLeft className="h-4 w-4" /> Back</Link>
-            </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {submitting ? "Creating…" : "Create draft"}
-            </Button>
-          </>
+          <Button type="button" variant="outline" asChild>
+            <Link href="/content"><ArrowLeft className="h-4 w-4" /> Back</Link>
+          </Button>
         }
       />
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardContent className="space-y-4 p-5">
-            <Field label="Title" required>
-              <Input value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="Compelling, clear headline" />
-            </Field>
-            <Field label="Short description">
-              <Textarea rows={2} value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="Optional internal description / brief" />
-            </Field>
-            <Field label="Caption / body">
-              <Textarea rows={4} value={form.caption} onChange={(e) => set("caption", e.target.value)} placeholder="Main caption or body copy" />
-            </Field>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Hashtags" hint="Comma or space separated">
-                <Input value={form.hashtags} onChange={(e) => set("hashtags", e.target.value)} placeholder="#brand #campaign" />
-              </Field>
-              <Field label="CTA">
-                <Input value={form.cta} onChange={(e) => set("cta", e.target.value)} placeholder="Shop now, Learn more…" />
-              </Field>
-            </div>
-            <Field label="Target URL">
-              <Input value={form.targetUrl} onChange={(e) => set("targetUrl", e.target.value)} placeholder="https://…" />
-            </Field>
-          </CardContent>
-        </Card>
+      <Stepper current={stepIndex} onJump={(i) => i < stepIndex && setStepIndex(i)} />
 
-        <Card>
-          <CardContent className="space-y-4 p-5">
-            <Field
-              label="Project"
-              required
-              hint={
-                projectsLoading
-                  ? "Loading projects…"
-                  : selectableProjects.length === 0 && !canPostGeneral
-                    ? "You have not been assigned to any projects. Ask an administrator to grant project access."
-                    : "Choose the project this content belongs to. You only see projects you are assigned to."
-              }
-            >
-              <div className="space-y-2">
-                <Select
-                  value={form.project}
-                  onValueChange={(v) => { set("project", v); if (v !== NONE) set("isGeneralMarketing", false); }}
-                  disabled={form.isGeneralMarketing || projectsLoading || selectableProjects.length === 0}
-                >
-                  <SelectTrigger><SelectValue placeholder={selectableProjects.length === 0 ? "No projects available" : "Select project"} /></SelectTrigger>
-                  <SelectContent>
-                    {selectableProjects.map((p) => (
-                      <SelectItem key={p._id} value={p._id}>{p.projectName}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {canPostGeneral ? (
-                  <label className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-                    <span>General marketing</span>
-                    <Switch checked={form.isGeneralMarketing} onCheckedChange={(v) => { set("isGeneralMarketing", v); if (v) set("project", NONE); }} />
-                  </label>
-                ) : null}
-              </div>
-            </Field>
-            <Field label="Content type">
-              <Select value={form.contentType} onValueChange={(v) => set("contentType", v as ContentType)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CONTENT_TYPES.map((t) => <SelectItem key={t} value={t}>{CONTENT_TYPE_LABELS[t]}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Platform">
-              <Select value={form.platform} onValueChange={(v) => set("platform", v as Platform)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {PLATFORMS.map((p) => <SelectItem key={p} value={p}>{PLATFORM_LABELS[p]}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Priority">
-              <Select value={form.priority} onValueChange={(v) => set("priority", v as Priority)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {PRIORITIES.map((p) => <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Planned publish date">
-              <Input type="datetime-local" value={form.publishDate} onChange={(e) => set("publishDate", e.target.value)} />
-            </Field>
-            <div className="grid gap-4 grid-cols-2">
-              <Field label="Language"><Input value={form.language} onChange={(e) => set("language", e.target.value)} placeholder="en, es…" /></Field>
-              <Field label="Country"><Input value={form.targetCountry} onChange={(e) => set("targetCountry", e.target.value)} placeholder="US, BR…" /></Field>
-            </div>
-            <Field label="Campaign name"><Input value={form.campaignName} onChange={(e) => set("campaignName", e.target.value)} placeholder="Optional" /></Field>
-          </CardContent>
-        </Card>
+      <Card>
+        <CardContent className="p-5">
+          {stepIndex === 0 ? (
+            <StepBasics state={state} set={set} projects={projects} projectsLoading={projectsLoading} canPostGeneral={canPostGeneral} />
+          ) : stepIndex === 1 ? (
+            <StepCopy state={state} set={set} />
+          ) : stepIndex === 2 ? (
+            <StepMedia state={state} set={set} userId={user?.id} />
+          ) : (
+            <StepTargeting state={state} set={set} />
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="flex items-center justify-between">
+        <Button type="button" variant="outline" onClick={prev} disabled={stepIndex === 0 || submitting}>
+          <ArrowLeft className="h-4 w-4" /> Previous
+        </Button>
+        {isLast ? (
+          <Button type="button" onClick={onSubmit} disabled={submitting}>
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            {submitting ? "Creating…" : "Create draft"}
+          </Button>
+        ) : (
+          <Button type="button" onClick={next} disabled={submitting}>
+            Next <ArrowRight className="h-4 w-4" />
+          </Button>
+        )}
       </div>
-    </form>
+    </div>
   );
 }
 
-function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: React.ReactNode }) {
+function Stepper({ current, onJump }: { current: number; onJump: (i: number) => void }) {
   return (
-    <div className="space-y-1.5">
-      <Label>{label}{required ? <span className="ml-0.5 text-destructive">*</span> : null}</Label>
-      {children}
-      {hint ? <p className="text-[11px] text-muted-foreground">{hint}</p> : null}
-    </div>
+    <ol className="grid grid-cols-1 gap-2 rounded-lg border bg-card p-3 sm:grid-cols-4">
+      {STEPS.map((s, i) => {
+        const done = i < current;
+        const active = i === current;
+        return (
+          <li key={s.key}>
+            <button
+              type="button"
+              onClick={() => onJump(i)}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-md px-3 py-2 text-left transition-colors",
+                active ? "bg-primary/10" : done ? "hover:bg-muted" : "opacity-70",
+              )}
+            >
+              <span
+                className={cn(
+                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-medium",
+                  active ? "border-primary bg-primary text-primary-foreground" :
+                  done ? "border-primary/60 bg-primary/10 text-primary" :
+                  "border-border bg-background text-muted-foreground",
+                )}
+              >
+                {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-medium leading-none">{s.label}</span>
+                <span className="block truncate text-xs text-muted-foreground">{s.description}</span>
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </ol>
   );
 }

@@ -7,7 +7,7 @@ import { badRequest, forbidden, notFound, ok, serverError } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
 import { canEditContent, canDeleteContent } from "@/lib/content-policy";
 import { canReadContentForProject } from "@/lib/project-access";
-import { CONTENT_TYPES, PLATFORMS, PRIORITIES } from "@/lib/constants";
+import { CONTENT_TYPES, FUNNEL_STAGES, PLATFORMS, PRIORITIES } from "@/lib/constants";
 
 export async function GET(_req: NextRequest, ctx: RouteContext<"/api/content/[id]">) {
   try {
@@ -48,6 +48,7 @@ const UpdateBody = z.object({
   contentType: z.enum(CONTENT_TYPES).optional(),
   platform: z.enum(PLATFORMS).optional(),
   priority: z.enum(PRIORITIES).optional(),
+  funnelStage: z.enum(FUNNEL_STAGES).optional(),
   caption: z.string().optional(),
   shortCaption: z.string().optional(),
   hashtags: z.array(z.string()).optional(),
