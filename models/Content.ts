@@ -161,7 +161,16 @@ ContentSchema.index({ status: 1, publishDate: 1 });
 ContentSchema.index({ project: 1, status: 1 });
 ContentSchema.index({ platform: 1, status: 1 });
 ContentSchema.index({ createdBy: 1, status: 1 });
-ContentSchema.index({ title: "text", caption: "text", campaignName: "text" });
+// The `language` field on this collection holds an ISO 639 targeting locale
+// (e.g. "ar", "fa", "tr"). MongoDB text indexes interpret any field literally
+// named `language` as a per-document language override for stemming, which
+// fails for codes the stemmer does not support (error 17262
+// "language override unsupported: ar"). Point language_override at a field
+// that never exists so our targeting locale is not treated as a stemming hint.
+ContentSchema.index(
+  { title: "text", caption: "text", campaignName: "text" },
+  { default_language: "none", language_override: "_textLanguage", name: "content_text_index" }
+);
 
 export type ContentDoc = InferSchemaType<typeof ContentSchema> & {
   _id: mongoose.Types.ObjectId;
