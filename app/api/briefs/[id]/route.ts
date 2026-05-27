@@ -6,6 +6,7 @@ import { ContentBrief } from "@/models/ContentBrief";
 import { User } from "@/models/User";
 import { badRequest, forbidden, notFound, ok, serverError } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
+import { notifyBriefEvent } from "@/lib/notifications";
 import { canDeleteBrief, canEditBrief, canReadBrief } from "@/lib/brief-policy";
 import {
   CONTENT_TYPES,
@@ -174,6 +175,14 @@ export async function PATCH(req: NextRequest, ctx: RouteContext<"/api/briefs/[id
       targetId: b._id,
       project: b.project ?? undefined,
     });
+    void notifyBriefEvent({
+      action: "brief.updated",
+      briefId: String(b._id),
+      briefTitle: b.title,
+      actorEmail: auth.ctx.email,
+      creatorId: b.createdBy,
+      assigneeId: b.assignedTo ?? null,
+    });
     return ok({ success: true });
   } catch (err) {
     return serverError(err);
@@ -202,6 +211,14 @@ export async function DELETE(_req: NextRequest, ctx: RouteContext<"/api/briefs/[
       targetType: "ContentBrief",
       targetId: b._id,
       project: b.project ?? undefined,
+    });
+    void notifyBriefEvent({
+      action: "brief.deleted",
+      briefId: String(b._id),
+      briefTitle: b.title,
+      actorEmail: auth.ctx.email,
+      creatorId: b.createdBy,
+      assigneeId: b.assignedTo ?? null,
     });
     return ok({ success: true });
   } catch (err) {

@@ -54,6 +54,8 @@ export const env = {
     maxLoginAttempts: Number(process.env.MAX_LOGIN_ATTEMPTS || "5"),
     loginLockoutMinutes: Number(process.env.LOGIN_LOCKOUT_MINUTES || "15"),
   },
+
+  brevoApiKey: () => required("BREVO_API_KEY", process.env.BREVO_API_KEY),
 } as const;
 
 export const publicEnv = {

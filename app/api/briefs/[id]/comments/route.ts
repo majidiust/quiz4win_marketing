@@ -5,6 +5,7 @@ import { connectDB } from "@/lib/db";
 import { ContentBrief } from "@/models/ContentBrief";
 import { badRequest, forbidden, notFound, ok, serverError } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
+import { notifyBriefEvent } from "@/lib/notifications";
 import { canReadBrief } from "@/lib/brief-policy";
 import { hasPermission } from "@/lib/rbac";
 
@@ -77,6 +78,14 @@ export async function POST(req: NextRequest, ctx: RouteContext<"/api/briefs/[id]
       targetType: "ContentBrief",
       targetId: b._id,
       project: b.project ?? undefined,
+    });
+    void notifyBriefEvent({
+      action: "brief.commented",
+      briefId: String(b._id),
+      briefTitle: b.title,
+      actorEmail: auth.ctx.email,
+      creatorId: b.createdBy,
+      assigneeId: b.assignedTo ?? null,
     });
     return ok({ success: true }, 201);
   } catch (err) {

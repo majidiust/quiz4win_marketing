@@ -6,6 +6,7 @@ import { ContentBrief } from "@/models/ContentBrief";
 import { User } from "@/models/User";
 import { badRequest, forbidden, notFound, ok, serverError } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
+import { notifyBriefEvent } from "@/lib/notifications";
 import { canReadBrief } from "@/lib/brief-policy";
 
 const Body = z.object({ userId: z.string().nullable() });
@@ -72,6 +73,14 @@ export async function POST(req: NextRequest, ctx: RouteContext<"/api/briefs/[id]
       targetId: b._id,
       project: b.project ?? undefined,
       message: body.data.userId === null ? "Unassigned" : `Assigned to ${body.data.userId}`,
+    });
+    void notifyBriefEvent({
+      action: "brief.assigned",
+      briefId: String(b._id),
+      briefTitle: b.title,
+      actorEmail: auth.ctx.email,
+      creatorId: b.createdBy,
+      assigneeId: b.assignedTo ?? null,
     });
     return ok({ success: true, status: b.status });
   } catch (err) {

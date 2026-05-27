@@ -7,6 +7,7 @@ import { Project } from "@/models/Project";
 import { User } from "@/models/User";
 import { badRequest, forbidden, ok, parsePagination, serverError } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
+import { notifyBriefEvent } from "@/lib/notifications";
 import {
   BRIEF_STATUS,
   CONTENT_TYPES,
@@ -277,6 +278,15 @@ export async function POST(req: Request) {
         message: `Assigned to ${assignedTo}`,
       });
     }
+    // Fire-and-forget email notifications (never block the response).
+    void notifyBriefEvent({
+      action: "brief.created",
+      briefId: String(brief._id),
+      briefTitle: brief.title,
+      actorEmail: auth.ctx.email,
+      creatorId: brief.createdBy,
+      assigneeId: brief.assignedTo ?? null,
+    });
     return ok({ id: String(brief._id) }, 201);
   } catch (err) {
     return serverError(err);

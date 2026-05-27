@@ -5,6 +5,7 @@ import { connectDB } from "@/lib/db";
 import { MediaFile, type MediaFileDoc } from "@/models/MediaFile";
 import { badRequest, ok, parsePagination, serverError } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
+import { notifyMediaEvent } from "@/lib/notifications";
 import { presignDownload, storageConfigured } from "@/lib/storage";
 
 // Signed GET URLs expire; pick a window long enough to use across the wizard,
@@ -62,6 +63,11 @@ export async function POST(req: Request) {
       targetType: "MediaFile",
       targetId: media._id,
       message: body.data.originalFilename,
+    });
+    void notifyMediaEvent({
+      action: "media.uploaded",
+      filename: body.data.originalFilename,
+      uploaderEmail: auth.ctx.email,
     });
 
     return ok({ media: await attachDisplayUrl(media) }, 201);

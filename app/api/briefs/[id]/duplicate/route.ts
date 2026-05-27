@@ -6,6 +6,7 @@ import { ContentBrief } from "@/models/ContentBrief";
 import { User } from "@/models/User";
 import { badRequest, forbidden, notFound, ok, serverError } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
+import { notifyBriefEvent } from "@/lib/notifications";
 import { canReadBrief } from "@/lib/brief-policy";
 import {
   canAccessProject,
@@ -127,6 +128,15 @@ export async function POST(req: NextRequest, ctx: RouteContext<"/api/briefs/[id]
         message: `Assigned to ${assignedTo}`,
       });
     }
+    void notifyBriefEvent({
+      action: "brief.duplicated",
+      briefId: String(clone._id),
+      briefTitle: clone.title,
+      actorEmail: auth.ctx.email,
+      creatorId: clone.createdBy,
+      assigneeId: clone.assignedTo ?? null,
+      note: `Duplicated from "${src.title}"`,
+    });
     return ok({ id: String(clone._id) }, 201);
   } catch (err) {
     return serverError(err);

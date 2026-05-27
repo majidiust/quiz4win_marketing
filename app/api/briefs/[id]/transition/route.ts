@@ -5,6 +5,7 @@ import { connectDB } from "@/lib/db";
 import { ContentBrief } from "@/models/ContentBrief";
 import { badRequest, forbidden, notFound, ok, serverError } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
+import { notifyBriefEvent } from "@/lib/notifications";
 import { BRIEF_STATUS, type ActivityAction } from "@/lib/constants";
 import { canPerformBriefTransition, canReadBrief, canTransitionBrief } from "@/lib/brief-policy";
 
@@ -78,6 +79,15 @@ export async function POST(req: NextRequest, ctx: RouteContext<"/api/briefs/[id]
       targetId: b._id,
       project: b.project ?? undefined,
       message: `${fromStatus} → ${toStatus}${note ? ` (${note})` : ""}`,
+    });
+    void notifyBriefEvent({
+      action,
+      briefId: String(b._id),
+      briefTitle: b.title,
+      actorEmail: auth.ctx.email,
+      creatorId: b.createdBy,
+      assigneeId: b.assignedTo ?? null,
+      note: note || `Status changed from ${fromStatus} to ${toStatus}`,
     });
     return ok({ success: true, status: b.status });
   } catch (err) {
