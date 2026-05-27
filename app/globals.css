@@ -91,7 +91,7 @@
   --color-sidebar-foreground: hsl(var(--sidebar-foreground));
   --color-sidebar-muted: hsl(var(--sidebar-muted));
   --color-sidebar-accent: hsl(var(--sidebar-accent));
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-geist-sans), var(--font-vazirmatn), sans-serif;
   --font-mono: var(--font-geist-mono);
   --radius: 0.625rem;
 }
