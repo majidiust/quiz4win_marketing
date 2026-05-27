@@ -139,34 +139,40 @@ const RecurrenceBody = z.object({
   timezone: z.string().optional(),
 });
 
+// The brief editor sends `null` (not `undefined`) for any field the user
+// left blank, so optional fields that the form might clear are declared
+// `.nullish()` to accept both. Empty strings are normalised to undefined
+// for the enum fields so Zod does not reject them.
+const emptyToUndef = <T>(v: T) => (v === "" ? undefined : v);
+
 const CreateBody = z.object({
   title: z.string().min(1),
-  description: z.string().optional(),
-  project: z.string().optional(),
+  description: z.string().nullish(),
+  project: z.string().nullish(),
   isGeneralMarketing: z.boolean().optional(),
-  goal: z.string().optional(),
-  platform: z.enum(PLATFORMS).optional(),
-  contentType: z.enum(CONTENT_TYPES).optional(),
-  funnelStage: z.enum(FUNNEL_STAGES).optional(),
-  language: z.string().optional(),
-  targetCountry: z.string().optional(),
-  targetAudience: z.string().optional(),
-  suggestedHashtags: z.array(z.string()).optional(),
-  suggestedMentions: z.array(z.string()).optional(),
-  suggestedCTA: z.string().optional(),
-  deadline: z.string().optional(),
+  goal: z.string().nullish(),
+  platform: z.preprocess(emptyToUndef, z.enum(PLATFORMS).nullish()),
+  contentType: z.preprocess(emptyToUndef, z.enum(CONTENT_TYPES).nullish()),
+  funnelStage: z.preprocess(emptyToUndef, z.enum(FUNNEL_STAGES).nullish()),
+  language: z.string().nullish(),
+  targetCountry: z.string().nullish(),
+  targetAudience: z.string().nullish(),
+  suggestedHashtags: z.array(z.string()).nullish(),
+  suggestedMentions: z.array(z.string()).nullish(),
+  suggestedCTA: z.string().nullish(),
+  deadline: z.string().nullish(),
   priority: z.enum(PRIORITIES).optional(),
   references: z
     .array(z.object({ label: z.string().optional(), url: z.string().url() }))
-    .optional(),
-  referenceMedia: z.array(z.string()).optional(),
-  assignedTo: z.string().optional(),
+    .nullish(),
+  referenceMedia: z.array(z.string()).nullish(),
+  assignedTo: z.string().nullish(),
   status: z.enum(BRIEF_STATUS).optional(),
   // Recurrence: when present, the brief is created as a template that will
   // spawn instances on each occurrence.
   isTemplate: z.boolean().optional(),
-  recurrence: RecurrenceBody.optional(),
-  deadlineOffsetHours: z.number().min(0).max(24 * 365).optional(),
+  recurrence: RecurrenceBody.nullish(),
+  deadlineOffsetHours: z.number().min(0).max(24 * 365).nullish(),
 });
 
 export async function POST(req: Request) {
@@ -226,8 +232,15 @@ export async function POST(req: Request) {
       : body.data.status || (assignedTo ? "assigned" : "created");
     const now = new Date();
 
+    // Strip nulls before spreading so Mongoose falls back to schema defaults
+    // (the editor sends null for any blank field, which would otherwise reach
+    // enum/array paths as a literal null).
+    const cleaned = Object.fromEntries(
+      Object.entries(body.data).filter(([, v]) => v !== null)
+    );
+
     const brief = await ContentBrief.create({
-      ...body.data,
+      ...cleaned,
       project: projectId,
       isGeneralMarketing: wantsGeneral,
       assignedTo,
@@ -238,7 +251,9 @@ export async function POST(req: Request) {
       createdBy: auth.ctx.userId,
       isTemplate,
       recurrence: recurrenceRule,
-      deadlineOffsetHours: isTemplate ? body.data.deadlineOffsetHours : undefined,
+      deadlineOffsetHours: isTemplate && body.data.deadlineOffsetHours != null
+        ? body.data.deadlineOffsetHours
+        : undefined,
       nextRunAt,
       activityLog: [{ action: "created", by: auth.ctx.userId, toStatus: initialStatus }],
     });
