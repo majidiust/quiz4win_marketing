@@ -35,33 +35,45 @@ const ACTION_LABELS: Record<string, string> = {
   "brief.commented": "commented on",
   "brief.duplicated": "duplicated",
   "brief.spawned": "auto-generated",
+  "content.created": "created",
+  "content.updated": "updated",
+  "content.submitted": "submitted for review",
+  "content.approved": "approved",
+  "content.rejected": "rejected",
+  "content.scheduled": "scheduled",
+  "content.published": "published",
+  "content.publish_failed": "failed to publish",
+  "content.deleted": "deleted",
+  "content.restored": "restored",
+  "content.archived": "archived",
+  "content.commented": "commented on",
   "media.uploaded": "uploaded",
   "media.deleted": "deleted",
 };
 
-function briefHtml(opts: {
+function entityHtml(opts: {
   recipientName: string;
+  entity: "Brief" | "Content";
   action: string;
-  briefTitle: string;
-  briefId: string;
+  title: string;
+  url: string;
   note?: string;
 }): string {
-  const url = `${env.appUrl}/briefs/${opts.briefId}`;
   const label = ACTION_LABELS[opts.action] ?? opts.action;
   return `<!DOCTYPE html>
 <html lang="en">
 <body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto;padding:24px">
-  <h2 style="color:#1a56db;margin-bottom:8px">Brief Notification</h2>
+  <h2 style="color:#1a56db;margin-bottom:8px">${opts.entity} Notification</h2>
   <p>Hello ${opts.recipientName},</p>
-  <p>The brief <strong>${opts.briefTitle}</strong> has been <strong>${label}</strong>.</p>
+  <p>The ${opts.entity.toLowerCase()} <strong>${opts.title}</strong> has been <strong>${label}</strong>.</p>
   ${opts.note ? `<p style="background:#f3f4f6;border-left:4px solid #1a56db;padding:8px 12px;border-radius:4px"><em>${opts.note}</em></p>` : ""}
   <p>
-    <a href="${url}" style="display:inline-block;background:#1a56db;color:#fff;padding:10px 20px;text-decoration:none;border-radius:4px;margin-top:8px">
-      View Brief
+    <a href="${opts.url}" style="display:inline-block;background:#1a56db;color:#fff;padding:10px 20px;text-decoration:none;border-radius:4px;margin-top:8px">
+      View ${opts.entity}
     </a>
   </p>
   <p style="color:#9ca3af;font-size:12px;margin-top:32px">
-    This is an automated notification from ${env.appName}. You are receiving this because you are involved with this brief.
+    This is an automated notification from ${env.appName}. You are receiving this because you are involved with this ${opts.entity.toLowerCase()}.
   </p>
 </body>
 </html>`;
@@ -96,17 +108,58 @@ export async function notifyBriefEvent(opts: {
       await sendBrevoEmail({
         to: [r],
         subject,
-        htmlContent: briefHtml({
+        htmlContent: entityHtml({
           recipientName: r.name || r.email,
+          entity: "Brief",
           action: opts.action,
-          briefTitle: opts.briefTitle,
-          briefId: opts.briefId,
+          title: opts.briefTitle,
+          url: `${env.appUrl}/briefs/${opts.briefId}`,
           note: opts.note,
         }),
       });
     }
   } catch (err) {
     console.error("[notifications] notifyBriefEvent error:", err);
+  }
+}
+
+/**
+ * Notify the creator and/or assignee of a content event.
+ * The actor is excluded so they don't receive a notification about their own action.
+ */
+export async function notifyContentEvent(opts: {
+  action: string;
+  contentId: string;
+  contentTitle: string;
+  actorEmail: string;
+  creatorId?: Types.ObjectId | string | null;
+  assigneeId?: Types.ObjectId | string | null;
+  note?: string;
+}): Promise<void> {
+  try {
+    const recipients = await resolveRecipients([opts.creatorId, opts.assigneeId]);
+    if (!recipients.length) return;
+
+    const label = ACTION_LABELS[opts.action] ?? opts.action;
+    const subject = `Content "${opts.contentTitle}" has been ${label}`;
+
+    for (const r of recipients) {
+      if (r.email === opts.actorEmail) continue;
+      await sendBrevoEmail({
+        to: [r],
+        subject,
+        htmlContent: entityHtml({
+          recipientName: r.name || r.email,
+          entity: "Content",
+          action: opts.action,
+          title: opts.contentTitle,
+          url: `${env.appUrl}/content/${opts.contentId}`,
+          note: opts.note,
+        }),
+      });
+    }
+  } catch (err) {
+    console.error("[notifications] notifyContentEvent error:", err);
   }
 }
 

@@ -8,6 +8,7 @@ import type { HydratedDocument } from "mongoose";
 import { Project } from "@/models/Project";
 import { badRequest, forbidden, ok, parsePagination, serverError } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
+import { notifyContentEvent } from "@/lib/notifications";
 import { canReadBrief } from "@/lib/brief-policy";
 import {
   CONTENT_STATUS,
@@ -247,6 +248,14 @@ export async function POST(req: Request) {
       targetId: content._id,
       project: content.project ?? undefined,
       message: `Created content "${content.title}"`,
+    });
+    void notifyContentEvent({
+      action: "content.created",
+      contentId: String(content._id),
+      contentTitle: content.title,
+      actorEmail: auth.ctx.email,
+      creatorId: content.createdBy,
+      assigneeId: content.assignedTo ?? null,
     });
     if (briefDoc && (briefDoc.status === "created" || briefDoc.status === "assigned")) {
       const now = new Date();

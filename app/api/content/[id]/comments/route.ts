@@ -5,6 +5,7 @@ import { connectDB } from "@/lib/db";
 import { Content } from "@/models/Content";
 import { badRequest, forbidden, notFound, ok, serverError } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
+import { notifyContentEvent } from "@/lib/notifications";
 import { canReadContentForProject } from "@/lib/project-access";
 import { hasPermission } from "@/lib/rbac";
 
@@ -71,6 +72,14 @@ export async function POST(req: NextRequest, ctx: RouteContext<"/api/content/[id
       targetType: "Content",
       targetId: c._id,
       project: c.project ?? undefined,
+    });
+    void notifyContentEvent({
+      action: "content.commented",
+      contentId: String(c._id),
+      contentTitle: c.title,
+      actorEmail: auth.ctx.email,
+      creatorId: c.createdBy,
+      assigneeId: c.assignedTo ?? null,
     });
     return ok({ success: true }, 201);
   } catch (err) {

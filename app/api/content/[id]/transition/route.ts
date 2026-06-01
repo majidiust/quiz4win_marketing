@@ -6,6 +6,7 @@ import { Content } from "@/models/Content";
 import { ContentBrief } from "@/models/ContentBrief";
 import { badRequest, forbidden, notFound, ok, serverError } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
+import { notifyContentEvent } from "@/lib/notifications";
 import { CONTENT_STATUS, type ActivityAction } from "@/lib/constants";
 import { canTransition, requiresReason } from "@/lib/content-policy";
 import { canReadContentForProject } from "@/lib/project-access";
@@ -137,6 +138,15 @@ export async function POST(req: NextRequest, ctx: RouteContext<"/api/content/[id
       targetId: c._id,
       project: c.project ?? undefined,
       message: `${fromStatus} → ${toStatus}${reason ? ` (${reason})` : ""}`,
+    });
+    void notifyContentEvent({
+      action,
+      contentId: String(c._id),
+      contentTitle: c.title,
+      actorEmail: auth.ctx.email,
+      creatorId: c.createdBy,
+      assigneeId: c.assignedTo ?? null,
+      note: reason || reviewerComment || `Status changed from ${fromStatus} to ${toStatus}`,
     });
 
     // If the content has a parent brief and just got published, check whether

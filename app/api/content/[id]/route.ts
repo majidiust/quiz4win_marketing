@@ -6,6 +6,7 @@ import { Content } from "@/models/Content";
 import { MediaFile } from "@/models/MediaFile";
 import { badRequest, forbidden, notFound, ok, serverError } from "@/lib/api";
 import { logActivity } from "@/lib/activity";
+import { notifyContentEvent } from "@/lib/notifications";
 import { canEditContent, canDeleteContent } from "@/lib/content-policy";
 import { canReadContentForProject } from "@/lib/project-access";
 import { CONTENT_TYPES, FUNNEL_STAGES, PLATFORMS, PRIORITIES } from "@/lib/constants";
@@ -180,6 +181,14 @@ export async function PATCH(req: NextRequest, ctx: RouteContext<"/api/content/[i
       targetId: c._id,
       project: c.project ?? undefined,
     });
+    void notifyContentEvent({
+      action: "content.updated",
+      contentId: String(c._id),
+      contentTitle: c.title,
+      actorEmail: auth.ctx.email,
+      creatorId: c.createdBy,
+      assigneeId: c.assignedTo ?? null,
+    });
     return ok({ success: true });
   } catch (err) {
     return serverError(err);
@@ -226,6 +235,14 @@ export async function DELETE(_req: NextRequest, ctx: RouteContext<"/api/content/
       targetType: "Content",
       targetId: c._id,
       project: c.project ?? undefined,
+    });
+    void notifyContentEvent({
+      action: "content.deleted",
+      contentId: String(c._id),
+      contentTitle: c.title,
+      actorEmail: auth.ctx.email,
+      creatorId: c.createdBy,
+      assigneeId: c.assignedTo ?? null,
     });
     return ok({ success: true });
   } catch (err) {
